@@ -1,7 +1,7 @@
 # dependencies
-node_modules/
-node_modules
+/.node_modules
 /node_modules
+node_modules
 
 # build outputs
 /build
@@ -28,4 +28,4 @@ yarn-debug.log*
 yarn-error.log*
 
 # Local development files
-*.log
+*.lognode_modules/
