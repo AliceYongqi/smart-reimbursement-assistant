@@ -1,4 +1,8 @@
 import { useState } from "react"
+// src/popup.tsx
+import ReimbursementPopup from "./components/reimbursementPopup";
+
+export default ReimbursementPopup;
 
 function IndexPopup() {
   const [data, setData] = useState("")
@@ -23,4 +27,4 @@ function IndexPopup() {
   )
 }
 
-export default IndexPopup
+// export default IndexPopup

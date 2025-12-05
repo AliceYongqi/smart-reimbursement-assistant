@@ -1,33 +1,71 @@
-This is a [Plasmo extension](https://docs.plasmo.com/) project bootstrapped with [`plasmo init`](https://www.npmjs.com/package/plasmo).
+// ...existing code...
+# Smart Reimbursement Assistant (Plasmo Extension)
 
-## Getting Started
+Smart Reimbursement Assistant is a Plasmo-based browser extension to assist with invoice and expense reimbursement workflows. It provides a popup UI for quick entry, content scripts / utilities for data extraction and processing, and an optional local server to handle PDF/OCR workflows.
 
-First, run the development server:
+Quick links
+- Repo root: /Users/joeyli/Desktop/extension/smart/smart-reimbursement-assistant
+- Extension source: src/
+- Local helper server: server/
 
+Prerequisites
+- Node.js 18+ (or the version specified in package.json)
+- pnpm recommended (npm/yarn supported)
+- macOS development: Chrome or Chromium-based browser for loading unpacked extension
+
+Install dependencies (project root)
+```bash
+pnpm install
+# or
+npm install
+```
+
+Development (extension)
 ```bash
 pnpm dev
 # or
 npm run dev
 ```
+- This runs the Plasmo dev server and outputs a development build (e.g. build/chrome-mv3-dev).
+- Load the unpacked build folder in Chrome at chrome://extensions (enable Developer mode).
 
-Open your browser and load the appropriate development build. For example, if you are developing for the chrome browser, using manifest v3, use: `build/chrome-mv3-dev`.
-
-You can start editing the popup by modifying `popup.tsx`. It should auto-update as you make changes. To add an options page, simply add a `options.tsx` file to the root of the project, with a react component default exported. Likewise to add a content page, add a `content.ts` file to the root of the project, importing some module and do some logic, then reload the extension on your browser.
-
-For further guidance, [visit our Documentation](https://docs.plasmo.com/)
-
-## Making production build
-
-Run the following:
-
+Build production bundle
 ```bash
 pnpm build
 # or
 npm run build
 ```
+- Output: build/<target> — zip that folder for store submission.
 
-This should create a production bundle for your extension, ready to be zipped and published to the stores.
+Run local helper server (optional)
+- The repository includes a simple server in server/ for PDF parsing or other local tasks.
+```bash
+cd server
+pnpm install
+# or
+npm install
+node server.js
+# or if package.json has a start script:
+npm start
+```
+- The server.js and pdf.js files are located in the server/ directory. Configure any API keys or ports as needed.
 
-## Submit to the webstores
+Configuration & credentials
+- Store external API keys (OCR, AI services) in environment variables or in the extension options page (do not commit secrets).
+- If using the local server, provide keys/ports via environment variables or server config.
 
-The easiest way to deploy your Plasmo extension is to use the built-in [bpp](https://bpp.browser.market) GitHub action. Prior to using this action however, make sure to build your extension and upload the first version to the store to establish the basic credentials. Then, simply follow [this setup instruction](https://docs.plasmo.com/framework/workflows/submit) and you should be on your way for automated submission!
+Development tips (macOS)
+- In Chrome: open chrome://extensions, enable Developer mode, then "Load unpacked" and point to the build/<target> folder.
+- Use DevTools for the popup, content script context, and service worker (background) console to debug messages and errors.
+- When changing extension source, re-run pnpm dev (or rebuild) and reload the extension in chrome://extensions.
+
+Contributing
+- Open issues and PRs. Use topic branches from main and include a short description and repro steps.
+
+License
+- MIT (update if your project uses a different license)
+
+Resources
+- Plasmo docs: https://docs.plasmo.com/
+
+// ...existing code...
