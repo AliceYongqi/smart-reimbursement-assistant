@@ -62,3 +62,22 @@ export function generateFilledExcel(
   const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
   return new Blob([wbout], { type: "application/octet-stream" });
 }
+
+export function getExcelBlobFromBase64(excelBase64: string): Blob {
+  let blob: Blob;
+    if (excelBase64 && typeof excelBase64 === 'string') {
+      const b64 = excelBase64.replace(/\s+/g, '');
+      // 在浏览器端把 base64 转为 Uint8Array
+      const byteChars = atob(b64);
+      const byteNumbers = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        byteNumbers[i] = byteChars.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      blob = new Blob([byteArray], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    } else {
+      // fallback: empty blob
+      blob = new Blob([], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    }
+  return blob;
+}

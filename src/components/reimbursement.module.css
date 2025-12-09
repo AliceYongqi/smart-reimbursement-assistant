@@ -6,10 +6,13 @@
   background: rgba(0, 20, 40, 0.85);
   backdrop-filter: blur(12px);
   border-radius: 24px;
-  padding: 30px;
+  padding: 10px 30px;
   margin: 25px;
   width: 600px;
   max-width: 600px;
+  min-height: 480px;      /* added: minimum height for the popup */
+  max-height: 80vh;       /* added: limit height relative to viewport */
+  overflow-y: auto;      /* oadded: enable scrolling when content exceeds max-height */
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.4s ease;
@@ -66,20 +69,23 @@
   background: linear-gradient(to right, #0077cc, #0047ab);
   color: #e6f0ff;
   border: none;
-  padding: 16px 45px;
-  font-size: 1.2rem;
   border-radius: 50px;
   cursor: pointer;
   transition: all 0.3s;
   box-shadow: 0 8px 25px rgba(0, 50, 100, 0.5);
-  font-weight: 500;
-  letter-spacing: 0.8px;
-  width: 100%;
 }
 
 .btn:hover {
   transform: scale(1.03);
   box-shadow: 0 12px 35px rgba(0, 70, 150, 0.7);
+}
+
+.btnSubmit {
+  padding: 16px 45px;
+  font-size: 1.2rem;
+  font-weight: 500;
+  letter-spacing: 0.8px;
+  width: 100%;
 }
 
 .status {
@@ -127,6 +133,9 @@
   border: 1px solid #ccc;
   border-radius: 4px;
 }
+/* .btnUplaod {
+
+} */
 .downloadBtn {
   margin-top: 15px;
   padding: 8px 16px;

@@ -1,7 +1,7 @@
 // ...existing code...
 # Smart Reimbursement Assistant (Plasmo Extension)
 
-Smart Reimbursement Assistant is a Plasmo-based browser extension to assist with invoice and expense reimbursement workflows. It provides a popup UI for quick entry, content scripts / utilities for data extraction and processing, and an optional local server to handle PDF/OCR workflows.
+Smart Reimbursement Assistant is a Plasmo-based browser extension to assist with fapiao and expense reimbursement workflows. It provides a popup UI for quick entry, content scripts / utilities for data extraction and processing, and an optional local server to handle PDF/OCR workflows.
 
 Quick links
 - Repo root: /Users/joeyli/Desktop/extension/smart/smart-reimbursement-assistant
