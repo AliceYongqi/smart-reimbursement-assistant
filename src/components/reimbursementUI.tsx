@@ -12,7 +12,7 @@ interface InvoiceUIProps {
   onTemplateSelect: (file: File) => void;
   onInvoicesSelect: (files: FileList) => void;
   templateFile: File | null;
-  invoiceFiles: File[] | null;
+  fapiaoFiles: File[] | null;
   onDownload: () => void; // 新增
 }
 
@@ -25,7 +25,7 @@ const ReimbursementUI: React.FC<InvoiceUIProps> = ({
   onTemplateSelect,
   onInvoicesSelect,
   templateFile,
-  invoiceFiles,
+  fapiaoFiles,
   onDownload,
 }) => {
   return (
@@ -49,10 +49,10 @@ const ReimbursementUI: React.FC<InvoiceUIProps> = ({
         onTemplateSelect={onTemplateSelect}
         onInvoicesSelect={onInvoicesSelect}
         templateFile={templateFile}
-        invoiceFiles={invoiceFiles}
+        fapiaoFiles={fapiaoFiles}
       />
 
-      <button className={styles.btn} onClick={onSubmit} disabled={status === "loading"}>
+      <button className={`${styles.btn} ${styles.btnSubmit}`} onClick={onSubmit} disabled={status === "loading"}>
         {status === "loading" ? "处理中..." : "提交并解析发票"}
       </button>
 
