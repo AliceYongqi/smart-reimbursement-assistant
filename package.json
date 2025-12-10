@@ -1,6 +1,6 @@
 {
-  "name": "fapiao-manager",
-  "displayName": "Invoice manager",
+  "name": "smart-reimbursement",
+  "displayName": "smart reimbursement",
   "version": "0.0.1",
   "description": "A basic Plasmo extension.",
   "author": "alice",
