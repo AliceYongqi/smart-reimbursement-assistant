@@ -4,7 +4,7 @@ const axios = require('axios');
 const cors = require('cors');
 const multer = require('multer');
 const { getUploadedFiles, message, parseExcelOrCsv, parseRawInvoiceFromJson,
-  parseQwenResponse, extractJsonAndExcel, safeJson, parsePdfText, parseRawInvoiceFromText } = require('./utils');
+  parseQwenResponse, parseQwenResponseText } = require('./utils');
 let XLSX_LIB = null;
 try { XLSX_LIB = require('xlsx'); } catch (e) { XLSX_LIB = null; }
 
@@ -91,7 +91,7 @@ app.post('/api/parse-template', upload.any(), async (req, res) => {
 app.post('/api/parse-fapiao', upload.any(), async (req, res) => {
   try {
 
-  // Get token from frontend (supports multipart/form-data field, JSON body, or Authorization header)
+    // Get token from frontend (supports multipart/form-data field, JSON body, or Authorization header)
     const token = (req.body && req.body.token) ||
       (req.headers && (req.headers.authorization || req.headers.Authorization) &&
         (req.headers.authorization || req.headers.Authorization).replace(/^Bearer\s+/i, '')) ||
@@ -104,63 +104,13 @@ app.post('/api/parse-fapiao', upload.any(), async (req, res) => {
     }
 
     const templateHeaders = req.body?.templateHeaders ?? [];
-  if (!templateHeaders) return res.status(400).json({ error: 'Missing headers' });
+    if (!templateHeaders) return res.status(400).json({ error: 'Missing headers' });
 
-  // Gather all uploaded files (multer.any may populate req.files)
+    // Gather all uploaded files (multer.any may populate req.files)
     const allFiles = (req.files && Array.isArray(req.files) && req.files.length > 0) ? req.files : (req.file ? [req.file] : []);
     if (allFiles.length === 0) {
       console.error('No uploaded files found in request');
       return res.status(400).json({ error: 'Missing image/pdf file. Upload a multipart/form-data file (field name: image, file or pdf).' });
-    }
-
-  // If any PDF is present, try fast text-extraction path first
-    const pdfFiles = allFiles.filter(f => (f.mimetype === 'application/pdf') || (f.originalname && f.originalname.toLowerCase().endsWith('.pdf')));
-    if (pdfFiles.length > 0) {
-      let parsedFromPdf = null;
-      for (const pf of pdfFiles) {
-        try {
-          const pdfResult = await parsePdfText(pf.buffer || pf.path || pf);
-          const text = pdfResult && pdfResult.text ? pdfResult.text : '';
-          // Try to parse invoice directly from extracted text
-          const candidate = parseRawInvoiceFromText(text);
-          if (candidate && candidate.amount) {
-            parsedFromPdf = candidate;
-            break;
-          }
-        } catch (e) {
-          console.warn('PDF text extraction failed for one file:', e.message || e);
-          // continue to next pdf
-        }
-      }
-
-      if (parsedFromPdf) {
-        // Optionally generate a tiny excel (one-row) if xlsx lib available
-        let excelBase64 = '';
-        if (XLSX_LIB) {
-          try {
-            const wb = XLSX_LIB.utils.book_new();
-            const row = {
-              amount: parsedFromPdf.amount,
-              taxId: parsedFromPdf.taxId,
-              date: parsedFromPdf.date,
-              seller: parsedFromPdf.seller,
-              buyer: parsedFromPdf.buyer,
-              invoiceType: parsedFromPdf.invoiceType,
-              items: JSON.stringify(parsedFromPdf.items || [])
-            };
-            const ws = XLSX_LIB.utils.json_to_sheet([row]);
-            XLSX_LIB.utils.book_append_sheet(wb, ws, 'Sheet1');
-            const buffer = XLSX_LIB.write(wb, { type: 'buffer', bookType: 'xlsx' });
-            excelBase64 = buffer.toString('base64');
-          } catch (e) {
-            console.warn('Failed to generate excel from parsed PDF:', e.message || e);
-            excelBase64 = '';
-          }
-        }
-
-        return res.json({ parsedFapiao: parsedFromPdf, excelBase64 });
-      }
-      // else fallthrough to image/multimodal path for other files
     }
 
   // Build image data URLs for non-pdf files and proceed with multimodal flow
@@ -176,6 +126,7 @@ app.post('/api/parse-fapiao', upload.any(), async (req, res) => {
     const content = base64Images.map(base64 => ({ image: base64 }));
     const messageContent = message('fapiao') + templateHeaders;
     content.push({ text: messageContent });
+
     console.log('token', token);
 
   // Call Qwen API, do not save token on backend—use token from request directly
@@ -200,19 +151,17 @@ app.post('/api/parse-fapiao', upload.any(), async (req, res) => {
       }
     });
     
-    // console.log('Qwen fapiao parse rrrrrrrrrr:', JSON.stringify(response.data || {}));
+    console.log('Qwen fapiao parse rrrrrrrrrr:', JSON.stringify(response.data || {}));
 
-    const parsedResp = extractJsonAndExcel(response);
-    // console.log('Qwen fapiao parse json----json:', JSON.stringify(parsedResp.json || {}));
+    const parsedResp = parseQwenResponseText(JSON.stringify(response.data || {}));
+    // console.log('Qwen fapiao parse json----json:', JSON.stringify(parsedResp || {}));
 
-    const parsedFapiao = parseRawInvoiceFromJson(parsedResp.json ||'');
+    const parsedFapiao = parseRawInvoiceFromJson(parsedResp.jsonData || []);
     console.log('Qwen fapiao parse cleaned:', JSON.stringify(parsedFapiao));
 
-  // Return JSON: parsed invoice object + excel base64 string (frontend converts to Blob)
-    const excelBase64 = parsedResp.excel || '';
     res.json({
       parsedFapiao,
-      excelBase64,
+      excel: parsedResp.csvContent,
     });
   } catch (error) {
     console.error('Qwen API Error:', error.response?.data || error.message);

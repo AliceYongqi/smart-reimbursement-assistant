@@ -83,51 +83,6 @@ async function parseExcelOrCsv(input) {
 }
 
 /**
- * Extract text from a PDF file (Buffer, file path, or multer-like file object).
- * Returns an object: { text, numpages, info, metadata }
- * Requires the `pdf-parse` package. If it's not installed, throws an informative error.
- */
-async function parsePdfText(input) {
-	let buffer;
-	if (Buffer.isBuffer(input)) {
-		buffer = input;
-	} else if (typeof input === 'string') {
-		if (!fs.existsSync(input)) throw new Error('PDF file path does not exist: ' + input);
-		buffer = fs.readFileSync(input);
-	} else if (input && typeof input === 'object') {
-		const filePath = input.path;
-		if (filePath && fs.existsSync(filePath)) {
-			buffer = fs.readFileSync(filePath);
-		} else if (input.buffer && Buffer.isBuffer(input.buffer)) {
-			buffer = input.buffer;
-		} else {
-			throw new Error('Unsupported PDF input object. Provide a Buffer, a file path, or a multer-like file with .buffer or .path');
-		}
-	} else {
-		throw new Error('Unsupported input type for parsePdfText');
-	}
-
-	let pdfParse;
-	try {
-		pdfParse = require('pdf-parse');
-	} catch (e) {
-		throw new Error("Missing dependency 'pdf-parse'. Please run 'npm install pdf-parse' in the server folder.");
-	}
-
-	try {
-		const data = await pdfParse(buffer);
-		return {
-			text: data.text || '',
-			numpages: data.numpages || (data.info && data.info.NPages) || 0,
-			info: data.info || null,
-			metadata: data.metadata || null
-		};
-	} catch (e) {
-		throw new Error('Failed to parse PDF: ' + (e.message || String(e)));
-	}
-}
-
-/**
  * Parse a Qwen-style response object and extract text content from message.content fields.
  * - Removes triple-backtick fences (e.g. ```json ... ```)
  * - Returns cleaned text(s) and attempts to parse the first JSON object/array found
@@ -143,26 +98,42 @@ function parseQwenResponse(resp) {
 
 	const texts = [];
 
-	const pushText = (t) => {
-		if (!t && t !== 0) return;
-		if (typeof t !== 'string') t = String(t);
-		texts.push(t);
-	};
-
-	// Helper to extract from a content value which may be array or string
-	const extractFromContent = (content) => {
-		if (!content) return;
-		if (Array.isArray(content)) {
-			for (const c of content) {
-				if (c && typeof c === 'object' && 'text' in c) pushText(c.text);
-				else if (typeof c === 'string') pushText(c);
+	// Recursively collect strings from various shapes: string, array, or objects with 'text' or 'content'
+	function collectStrings(value) {
+		if (value == null) return [];
+		if (typeof value === 'string') return [value];
+		if (typeof value === 'number' || typeof value === 'boolean') return [String(value)];
+		if (Array.isArray(value)) {
+			const out = [];
+			for (const v of value) {
+				out.push(...collectStrings(v));
 			}
-		} else if (typeof content === 'string') {
-			pushText(content);
-		} else if (typeof content === 'object') {
-			if ('text' in content) pushText(content.text);
+			return out;
 		}
-	};
+		if (typeof value === 'object') {
+			// Prefer explicit/common fields and try likely nested shapes
+			if (value.text !== undefined) return collectStrings(value.text);
+			if (value.content !== undefined) return collectStrings(value.content);
+			if (value.data !== undefined) return collectStrings(value.data);
+			if (Array.isArray(value.parts)) return collectStrings(value.parts);
+			if (Array.isArray(value.items)) return collectStrings(value.items);
+			// Some message shapes put text under nested objects like { text: [{ text: '...' }] }
+			// Fallback: iterate keys in insertion order to preserve message ordering
+			const out = [];
+			for (const k of Object.keys(value)) {
+				out.push(...collectStrings(value[k]));
+			}
+			return out;
+		}
+		return [];
+	}
+
+	function extractFromContent(content) {
+		const collected = collectStrings(content);
+		for (const s of collected) {
+			if (s || s === 0) texts.push(String(s));
+		}
+	}
 
 	// Common paths
 	try {
@@ -177,12 +148,13 @@ function parseQwenResponse(resp) {
 		if (Array.isArray(data.choices)) {
 			for (const ch of data.choices) {
 				const msg = ch.message || {};
-				extractFromContent(msg.content || ch.message?.content || ch.message?.content?.text);
+				extractFromContent(msg.content || ch.message?.content || ch.message?.content?.text || ch);
 			}
 		}
 
-		// fallback: if there's a top-level 'content' array
+		// fallback: if there's a top-level 'content' array or 'text'
 		if (data.content) extractFromContent(data.content);
+		if (data.text) extractFromContent(data.text);
 	} catch (e) {
 		// ignore extraction errors
 	}
@@ -228,43 +200,46 @@ function parseQwenResponse(resp) {
 	};
 }
 
-
 function parseRawInvoiceFromJson(fapiaoJson) {
-    let parsedFapiao = null;
-    if (fapiaoJson && typeof fapiaoJson === 'object') {
-      try {
-	// fapiaoJson may contain required fields, do a mapping to ensure field names are consistent
-        const j = fapiaoJson;
-        parsedFapiao = {
-          amount: safeParseNumber(j.amount || j.total || j.totalAmount),
-          taxId: j.taxId || j.tax_number || j.tax || j.税号 || '',
-          date: j.date || j.invoice_date || j.日期 || '',
-          seller: j.seller || j.seller_name || j.销售方 || '',
-          buyer: j.buyer || j.buyer_name || j.购买方 || '',
-          invoiceType: j.invoiceType || j.type || j.发票类型 || '',
-          items: Array.isArray(j.items) ? j.items.map(it => ({
-            name: it.name || it.item || '',
-            category: it.category || it.cat || '',
-            price: safeParseNumber(it.price || it.unitPrice || it['单价'] || it['unitPrice']),
-            quantity: safeParseNumber(it.quantity || it.qty || it['数量'] || it['qty'])
-          })) : []
-        };
-        console.log('Parsed RawInvoice from parsedResp:', parsedFapiao);
-      } catch (e) {
-        console.error('Error mapping parsedResp.parsed to invoice:', e);
-        parsedFapiao = null;
-      }
-    }
+    let parsedFapiao = [];
+	if (fapiaoJson && fapiaoJson.length > 0) {
+		for (const item of fapiaoJson) {
+			if (typeof item === 'object') {
+				try {
+					// fapiaoJson may contain required fields, do a mapping to ensure field names are consistent
+					const j = item;
+					const fapiao = {
+						amount: safeParseNumber(j.amount || j.total || j.totalAmount),
+						taxId: j.taxId || j.tax_number || j.tax || j.税号 || '',
+						date: j.date || j.invoice_date || j.日期 || '',
+						seller: j.seller || j.seller_name || j.销售方 || '',
+						buyer: j.buyer || j.buyer_name || j.购买方 || '',
+						invoiceType: j.invoiceType || j.type || j.发票类型 || '',
+						items: Array.isArray(j.items) ? j.items.map(it => ({
+							name: it.name || it.item || '',
+							category: it.category || it.cat || '',
+							price: safeParseNumber(it.price || it.unitPrice || it['单价'] || it['unitPrice']),
+							quantity: safeParseNumber(it.quantity || it.qty || it['数量'] || it['qty'])
+						})) : []
+					};
+					parsedFapiao.push(fapiao);
+					console.log('Parsed RawInvoice from parsedResp:', parsedFapiao);
+				} catch (e) {
+					console.error('Error mapping parsedResp.parsed to invoice:', e);
+				}
+			}
+		}
+	}
 
-    if (!parsedFapiao) {
-      try {
-        parsedFapiao = parseRawInvoiceFromText(fapiaoJson);
-        console.log('Parsed RawInvoice (fallback):', parsedFapiao);
-      } catch (e) {
-        console.error('Failed to parse fapiao from text:', e.message || e);
-        parsedFapiao = null;
-      }
-    }
+    // if (!parsedFapiao) {
+    //   try {
+    //     parsedFapiao = parseRawInvoiceFromText(fapiaoJson);
+    //     console.log('Parsed RawInvoice (fallback):', parsedFapiao);
+    //   } catch (e) {
+    //     console.error('Failed to parse fapiao from text:', e.message || e);
+    //     parsedFapiao = null;
+    //   }
+    // }
     return parsedFapiao;
 }
 
@@ -273,63 +248,55 @@ function parseRawInvoiceFromJson(fapiaoJson) {
     const m = String(str).replace(/[,，\s]/g, '').match(/-?\d+(?:\.\d+)?/);
     return m ? Number(m[0]) : 0;
 }
+
 /**
- * 从 response 的结果或原始响应中提取两个文件的有效字段：
- * - JSON 部分（若模型返回了 JSON 代码块或可解析的 JSON）
- * - Excel 风格表格数据（从模型返回的文本表格或 markdown 表格中解析为行数组）
- *
- * 输入是 axios response 原始对象。
- * 返回 { json, excelRows, combined, rawTexts }
+ * 从 Qwen 返回的 text 字符串中解析出 JSON 数据和 CSV 内容
+ * @param {string} text - Qwen 返回的 content[0].text
+ * @returns {{ jsonData: any[], csvContent: string }}
  */
-function extractJsonAndExcel(response) {
-	const parsedResp = parseQwenResponse(response);
-	const combined = parsedResp.combined || '';
-	const rawTexts = parsedResp.rawTexts || parsedResp.cleanedTexts || [];
+function parseQwenResponseText(responseData) {
+  // 按 "csv:" 分割，最多分成两部分
+  const text = JSON.parse(responseData)['output']['choices'][0]['message']['content'][0]['text'];
+  const parts = text.trim().split(/^csv:/m);
+  console.log('JSON.parse(responseData)', JSON.parse(responseData));
+  console.log('text', text);
 
-	// Try parsed JSON first (parseQwenResponse attempts JSON parsing)
-	let json = parsedResp.parsed && typeof parsedResp.parsed === 'object' ? parsedResp.parsed : null;
+  let jsonStr = '';
+  let csvContent = '';
 
-	// If not parsed, try to extract a JSON object/array substring from the combined text
-	if (!json && combined) {
-		const objMatch = combined.match(/(\{[\s\S]*\})/);
-		const arrMatch = combined.match(/(\[[\s\S]*\])/);
-		const match = objMatch || arrMatch;
-		if (match) {
-			try {
-				json = JSON.parse(match[1]);
-			} catch (e) {
-				// ignore parse error; leave json as null
-			}
-		}
+  if (parts.length === 1) {
+    // 没有 csv，整个是 JSON
+    jsonStr = parts[0].trim();
+    csvContent = '';
+  } else if (parts.length >= 2) {
+    // 第一部分是 JSON，后面合并为 CSV（防止内容中有多个 "csv:"）
+    jsonStr = parts[0].trim();
+    
+	for (let i = 1; i < parts.length; i++) {
+		csvContent += parts[i];
 	}
+  }
 
-	// Extract the base64 part that follows the JSON. We assume the model output puts the base64
-	// on the following line(s). We'll take the text after the JSON substring (if any), trim and
-	// collapse whitespace to produce a continuous base64 string.
-	let excel = '';
-	if (combined) {
-		// find the first JSON/array match location
-		const jsonMatch = combined.match(/(\{[\s\S]*\})|(\[[\s\S]*\])/);
-		let after = combined;
-		if (jsonMatch) {
-			const idx = combined.indexOf(jsonMatch[0]);
-			if (idx >= 0) {
-				after = combined.slice(idx + jsonMatch[0].length).trim();
-			}
-		}
+  console.log('jsonStr=========', jsonStr);
+  console.log('csvContent=========', csvContent);
+  // 解析 JSON
+  let jsonData = [];
+  try {
+    // 确保 JSON 字符串以 [ 开头、] 结尾
+    if (jsonStr.startsWith('[') && jsonStr.endsWith(']')) {
+      jsonData = JSON.parse(jsonStr);
+    } else {
+      console.warn('JSON 部分格式异常:', jsonStr.substring(0, 100));
+    }
+  } catch (err) {
+    console.error('JSON 解析失败:', err);
+    jsonData = [];
+  }
 
-		// Collapse newlines/spaces — base64 is typically continuous; keep only base64-valid chars
-		const candidate = (after || '').replace(/\s+/g, '');
-		// Basic base64 validation: length and allowed chars
-		if (candidate && candidate.length > 20 && /^[A-Za-z0-9+/=]+$/.test(candidate)) {
-			excel = candidate;
-		} else {
-			// fallback: if there's any non-empty remainder, return it trimmed
-			excel = (after || '').trim();
-		}
-	}
-
-	return { json: json || null, excel };
+  return {
+    jsonData,       // 发票对象数组
+    csvContent      // 纯 CSV 内容（不含 "csv:" 前缀）
+  };
 }
 
 // Safe stringify for logging (falls back to util.inspect if circular)
@@ -361,51 +328,43 @@ function getUploadedFiles(req, preferred = []) {
 }
 
 function message(type) {
-	const basePrompt = `You are a senior finance expert with 10 years of experience, specializing in invoice, Excel data, and financial report processing. You can:
-		✅ Quickly extract invoice information (amount, tax rate, vendor, date, etc.), automatically detect anomalies;
-		✅ Master Excel functions (VLOOKUP, SUMIFS, etc.), clean data and generate pivot tables in one click;
-		✅ Explain report logic in plain language, avoid jargon;
-		✅ Remain patient and humorous.
-		Important rules:
-		- All answers must strictly follow the user-specified output format;
-		- Do not add any explanations, comments, Markdown, Chinese notes, or extra text;
-		- Only output the required content, do not add any characters before or after.`;
+  const basePrompt = `你是一位拥有10年经验的高级财务专家，专精处理发票、Excel数据和财务报表。你能：
+    ✅ 快速解析发票信息（金额、税率、供应商、日期等），自动识别异常；
+    ✅ 精通Excel函数（VLOOKUP、SUMIFS等），一键清洗数据、生成透视表；
+    ✅ 用简单大白话解释报表逻辑，拒绝术语轰炸；
+    ✅ 保持耐心又幽默。
+    重要规则：
+    - 所有回答必须严格遵循用户指定的输出格式；
+    - 禁止添加任何解释、注释、Markdown、中文说明或额外文本；
+    - 只输出要求的内容，前后不要加任何字符。`;
 
-	switch (type) {
-		case 'fapiao':
-			return basePrompt + `
-				Task in two steps, strictly in order:
-				Step 1: Extract key fields from one or more invoices provided by the user and output as valid JSON, example:
-				{ "amount": number, "taxId": string, "date": "YYYY-MM-DD", "seller": string, "buyer": string, "invoiceType": string, "items": [{"name":string,"category":string,"price":number,"quantity":number}] }
+  switch (type) {
+    case 'fapiao':
+      return basePrompt + `
+        任务分两步，严格按顺序执行：
+        第一步：从用户提供的一张或多张发票内容中提取重要字段，并以合法 JSON 格式输出，示例：
+        [{ "amount": 数值, "taxId": 字符串, "date": "YYYY-MM-DD", "seller": 字符串, "buyer": 字符串, "invoiceType": 字符串, "items": [{"name":字符串,"category":字符串,"price":数值,"quantity":数值}] }]
 
-				Step 2: Based on the extracted invoice info and user-provided Excel column definitions, generate an Excel file containing the invoice data and return its base64 encoded string.
+        第二步：根据上述提取的发票信息，结合用户提供的 Excel 列定义，生成一个包含该发票数据的表格，并返回返回csv格式。
 
-				Final output format (strictly follow):
-				<First line: JSON object>
-				<Second line: base64 string>
+        最终输出格式（必须严格遵守）：
+        <第一行：JSON object[]>
+        <第二行：csv {csv: string}  csv: 不可变动的字段名，后面跟着冒号和 csv 格式字符串（必须）>
 
-				Note: Do not output any other content, including "OK", "Here is...", etc.`;
+        注意：不要输出任何其他内容，包括“好的”、“以下是…”等。`;
     
-		case 'parseExcel':
-			return basePrompt + `
-				Extract all column names (first row headers) from the user-provided Excel file and return as a JSON array.
-				Example output: ["Date","Amount","Merchant","Category"]
-				Requirements:
-				- Only output JSON array;
-				- Do not add any extra text, explanation, or format;
-				- Column order must match the original file.`;
+    case 'parseExcel':
+      return basePrompt + `
+        请从用户提供的 Excel 文件内容中提取所有列名（即第一行表头），并以 JSON 数组格式返回。
+        示例输出：["日期","金额","商户","分类"]
+        要求：
+        - 仅输出 JSON 数组；
+        - 不要任何额外文本、解释或格式；
+        - 列名顺序必须与原始文件一致。`;
     
-		case 'generateExcel':
-			return basePrompt + `
-				Based on the user-provided invoice data array and Excel column definitions, map the data to columns and generate an Excel file, then return its base64 encoded string.
-				Requirements:
-				- Only output base64 string;
-				- Do not add any JSON, explanation, line breaks, or other characters;
-				- Ensure base64 can be directly decoded to a valid .xlsx file.`;
-    
-		default:
-			return basePrompt;
-	}
+    default:
+      return basePrompt;
+  }
 }
 
 function parseRawInvoiceFromText(text) {
@@ -476,12 +435,9 @@ function parseRawInvoiceFromText(text) {
 module.exports = {
 	parseExcelOrCsv,
 	parseQwenResponse,
-	extractJsonAndExcel,
+	parseQwenResponseText,
 	safeJson,
 	getUploadedFiles,
     message,
-    parseRawInvoiceFromText,
-    parseRawInvoiceFromJson,
-    parsePdfText
+    parseRawInvoiceFromJson
 };
-

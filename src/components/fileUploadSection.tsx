@@ -4,7 +4,7 @@ import styles from "./reimbursement.module.css";
 
 interface FileUploadSectionProps {
   onTemplateSelect: (file: File) => void;
-  onInvoicesSelect: (files: FileList) => void;
+  onInvoicesSelect: (files: File[]) => void;
   templateFile: File | null;
   fapiaoFiles: File[] | null;
 }
@@ -33,9 +33,9 @@ const FileUploadSection: React.FC<FileUploadSectionProps> = ({
         {/* <input className={`${styles.btn} ${styles.btnUplaod}`} */}
         <input
           type="file"
-          accept="image/*,.pdf"
+          accept=".jpg,.jpeg,.png,.pdf,image/*,application/pdf"
           multiple
-          onChange={(e) => e.target.files && onInvoicesSelect(e.target.files)}
+          onChange={(e) => e.target.files && onInvoicesSelect(Array.from(e.target.files))}
         />
         {fapiaoFiles && <p>✅ 已选择 {fapiaoFiles.length} 张发票</p>}
       </div>

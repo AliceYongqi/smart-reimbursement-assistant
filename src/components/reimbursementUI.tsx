@@ -10,7 +10,7 @@ interface InvoiceUIProps {
   onSubmit: () => void;
   onKeyPress: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onTemplateSelect: (file: File) => void;
-  onInvoicesSelect: (files: FileList) => void;
+  onInvoicesSelect: (files: File[]) => void;
   templateFile: File | null;
   fapiaoFiles: File[] | null;
   onDownload: () => void; // 新增
@@ -30,7 +30,7 @@ const ReimbursementUI: React.FC<InvoiceUIProps> = ({
 }) => {
   return (
     <div className={styles.container}>
-      <h1>Smart Reimbursement · Qwen Edition</h1>
+      <h1>Smart Reimbursement · Qwen</h1>
 
       <div className={styles.inputGroup}>
       <label htmlFor="tokenInput">Enter Qwen API Token</label>

@@ -17,7 +17,7 @@ function ReimbursementPopup() {
   const processedDataRef = useRef<{ excelBlob: Blob; json: OutputJson } | null>(null);
 
   const handleTemplateSelect = (file: File) => setTemplateFile(file);
-  const handleInvoicesSelect = (files: FileList) => setInvoiceFiles(Array.from(files));
+  const handleInvoicesSelect = (files: File[]) => setInvoiceFiles(files);
 
   const handleTokenChange = (t: string) => {
     setToken(t);
@@ -96,7 +96,7 @@ function ReimbursementPopup() {
   const handleDownload = () => {
     if (!processedDataRef.current) return;
     const { excelBlob, json } = processedDataRef.current;
-    downloadExcel(excelBlob, "报销明细.xlsx");
+    downloadExcel(excelBlob, "报销明细.csv");
     downloadJson(json, "发票数据.json");
   };
 
@@ -112,7 +112,7 @@ function ReimbursementPopup() {
       onSubmit={handleSubmit}
       onKeyPress={handleKeyPress}
       onTemplateSelect={handleTemplateSelect}
-      onInvoicesSelect={(files) => setInvoiceFiles(Array.from(files))}
+      onInvoicesSelect={handleInvoicesSelect}
       templateFile={templateFile}
       fapiaoFiles={fapiaoFiles}
       onDownload={handleDownload}
