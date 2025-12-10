@@ -35,7 +35,7 @@ export async function parseTemplateWithQwen(
 }
 
 /**
- * 将单张发票文件发送到后端/大模型解析。可选地传入模板文件，允许模型根据模板优化解析结果。
+ * 将多张发票文件发送到后端/大模型解析。可选地传入模板文件，允许模型根据模板优化解析结果。
  */
 export async function parseInvoiceWithQwen(
   imageFile: File[],
@@ -63,11 +63,10 @@ export async function parseInvoiceWithQwen(
     const data = await res.json();
     if (typeof data === "string") return JSON.parse(data);
     console.log("Qwen parseInvoiceWithQwen data:", data);
-    
-    const blob = getExcelBlobFromBase64(data.excel || "");
+    const blob = new Blob(['\uFEFF' + data.excel], { type: 'text/csv;charset=utf-8' });
 
     return {
-      parsedFapiao: [data.parsedFapiao] as RawInvoice[],
+      parsedFapiao: Array.isArray(data.parsedFapiao) ? (data.parsedFapiao as RawInvoice[]) : [data.parsedFapiao] as RawInvoice[],
       excelRows: blob,
     };
   } catch (e) {

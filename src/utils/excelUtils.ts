@@ -64,20 +64,49 @@ export function generateFilledExcel(
 }
 
 export function getExcelBlobFromBase64(excelBase64: string): Blob {
-  let blob: Blob;
-    if (excelBase64 && typeof excelBase64 === 'string') {
-      const b64 = excelBase64.replace(/\s+/g, '');
-      // 在浏览器端把 base64 转为 Uint8Array
-      const byteChars = atob(b64);
-      const byteNumbers = new Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) {
-        byteNumbers[i] = byteChars.charCodeAt(i);
+  // Robustly convert base64 (possibly a data URL) to a Blob in chunks to avoid memory/string issues
+  if (!excelBase64 || typeof excelBase64 !== 'string') {
+    return new Blob([], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
+
+  // If a data URL was passed, extract the base64 portion
+  const maybeDataUrlMatch = excelBase64.match(/^data:.*;base64,(.*)$/i);
+  const b64 = maybeDataUrlMatch ? maybeDataUrlMatch[1] : excelBase64.replace(/\s+/g, '');
+
+  // Basic validation: allow base64 chars only (will still try to decode if non-standard)
+  const isValidBase64 = /^[A-Za-z0-9+/=]+$/.test(b64);
+
+  try {
+    // Decode in chunks to avoid creating a huge intermediate string in memory
+    const sliceSize = 1024 * 1024; // 1MB slices of base64 input (not bytes)
+    const byteArrays: Uint8Array[] = [];
+
+    for (let offset = 0; offset < b64.length; offset += sliceSize) {
+      const slice = b64.slice(offset, offset + sliceSize);
+      // atob will throw if invalid base64 characters are present
+      const binary = atob(slice);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
       }
-      const byteArray = new Uint8Array(byteNumbers);
-      blob = new Blob([byteArray], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    } else {
-      // fallback: empty blob
-      blob = new Blob([], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      byteArrays.push(bytes);
     }
-  return blob;
+
+    // Concatenate all byte arrays into a single Uint8Array
+    let totalLength = 0;
+    for (const arr of byteArrays) totalLength += arr.length;
+    const result = new Uint8Array(totalLength);
+    let position = 0;
+    for (const arr of byteArrays) {
+      result.set(arr, position);
+      position += arr.length;
+    }
+
+    return new Blob([result.buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  } catch (err) {
+    // If decoding fails, return an empty blob to avoid throwing in callers; caller may log/handle
+    console.error('Failed to decode excel base64 to blob', err, { isValidBase64 });
+    return new Blob([], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
 }
