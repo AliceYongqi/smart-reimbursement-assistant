@@ -30,10 +30,10 @@ const ReimbursementUI: React.FC<InvoiceUIProps> = ({
 }) => {
   return (
     <div className={styles.container}>
-      <h1>发票管家 · 千问版</h1>
+      <h1>Smart Reimbursement · Qwen Edition</h1>
 
       <div className={styles.inputGroup}>
-        <label htmlFor="tokenInput">请输入千问 API Token</label>
+      <label htmlFor="tokenInput">Enter Qwen API Token</label>
         <input
           type="text"
           id="tokenInput"
@@ -53,20 +53,20 @@ const ReimbursementUI: React.FC<InvoiceUIProps> = ({
       />
 
       <button className={`${styles.btn} ${styles.btnSubmit}`} onClick={onSubmit} disabled={status === "loading"}>
-        {status === "loading" ? "处理中..." : "提交并解析发票"}
+        {status === "loading" ? "Processing..." : "Submit and Parse Invoice"}
       </button>
 
       {status === "success" && (
         <div className={`${styles.status} ${styles.success}`}>
-          <h3>✅ 处理完成！</h3>
+          <h3>✅ Processing Complete!</h3>
           <button className={styles.downloadBtn} onClick={onDownload}>
-            ⬇️ 下载 Excel 和 JSON
+            ⬇️ Download Excel and JSON
           </button>
         </div>
       )}
 
       <div className={styles.footer}>
-        <p>支持增值税/电子/卷式发票 · 所有请求通过千问 API 完成</p>
+        <p>Supports VAT/Electronic/Roll Invoices · All requests are processed via Qwen API</p>
       </div>
     </div>
   );

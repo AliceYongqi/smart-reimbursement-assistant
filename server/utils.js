@@ -83,6 +83,51 @@ async function parseExcelOrCsv(input) {
 }
 
 /**
+ * Extract text from a PDF file (Buffer, file path, or multer-like file object).
+ * Returns an object: { text, numpages, info, metadata }
+ * Requires the `pdf-parse` package. If it's not installed, throws an informative error.
+ */
+async function parsePdfText(input) {
+	let buffer;
+	if (Buffer.isBuffer(input)) {
+		buffer = input;
+	} else if (typeof input === 'string') {
+		if (!fs.existsSync(input)) throw new Error('PDF file path does not exist: ' + input);
+		buffer = fs.readFileSync(input);
+	} else if (input && typeof input === 'object') {
+		const filePath = input.path;
+		if (filePath && fs.existsSync(filePath)) {
+			buffer = fs.readFileSync(filePath);
+		} else if (input.buffer && Buffer.isBuffer(input.buffer)) {
+			buffer = input.buffer;
+		} else {
+			throw new Error('Unsupported PDF input object. Provide a Buffer, a file path, or a multer-like file with .buffer or .path');
+		}
+	} else {
+		throw new Error('Unsupported input type for parsePdfText');
+	}
+
+	let pdfParse;
+	try {
+		pdfParse = require('pdf-parse');
+	} catch (e) {
+		throw new Error("Missing dependency 'pdf-parse'. Please run 'npm install pdf-parse' in the server folder.");
+	}
+
+	try {
+		const data = await pdfParse(buffer);
+		return {
+			text: data.text || '',
+			numpages: data.numpages || (data.info && data.info.NPages) || 0,
+			info: data.info || null,
+			metadata: data.metadata || null
+		};
+	} catch (e) {
+		throw new Error('Failed to parse PDF: ' + (e.message || String(e)));
+	}
+}
+
+/**
  * Parse a Qwen-style response object and extract text content from message.content fields.
  * - Removes triple-backtick fences (e.g. ```json ... ```)
  * - Returns cleaned text(s) and attempts to parse the first JSON object/array found
@@ -188,7 +233,7 @@ function parseRawInvoiceFromJson(fapiaoJson) {
     let parsedFapiao = null;
     if (fapiaoJson && typeof fapiaoJson === 'object') {
       try {
-        // 可能 fapiaoJson 包含我们需要的字段，做一次映射以确保字段名一致
+	// fapiaoJson may contain required fields, do a mapping to ensure field names are consistent
         const j = fapiaoJson;
         parsedFapiao = {
           amount: safeParseNumber(j.amount || j.total || j.totalAmount),
@@ -316,51 +361,51 @@ function getUploadedFiles(req, preferred = []) {
 }
 
 function message(type) {
-  const basePrompt = `你是一位拥有10年经验的高级财务专家，专精处理发票、Excel数据和财务报表。你能：
-    ✅ 快速解析发票信息（金额、税率、供应商、日期等），自动识别异常；
-    ✅ 精通Excel函数（VLOOKUP、SUMIFS等），一键清洗数据、生成透视表；
-    ✅ 用简单大白话解释报表逻辑，拒绝术语轰炸；
-    ✅ 保持耐心又幽默。
-    重要规则：
-    - 所有回答必须严格遵循用户指定的输出格式；
-    - 禁止添加任何解释、注释、Markdown、中文说明或额外文本；
-    - 只输出要求的内容，前后不要加任何字符。`;
+	const basePrompt = `You are a senior finance expert with 10 years of experience, specializing in invoice, Excel data, and financial report processing. You can:
+		✅ Quickly extract invoice information (amount, tax rate, vendor, date, etc.), automatically detect anomalies;
+		✅ Master Excel functions (VLOOKUP, SUMIFS, etc.), clean data and generate pivot tables in one click;
+		✅ Explain report logic in plain language, avoid jargon;
+		✅ Remain patient and humorous.
+		Important rules:
+		- All answers must strictly follow the user-specified output format;
+		- Do not add any explanations, comments, Markdown, Chinese notes, or extra text;
+		- Only output the required content, do not add any characters before or after.`;
 
-  switch (type) {
-    case 'fapiao':
-      return basePrompt + `
-        任务分两步，严格按顺序执行：
-        第一步：从用户提供的一张或多张发票内容中提取重要字段，并以合法 JSON 格式输出，示例：
-        { "amount": 数值, "taxId": 字符串, "date": "YYYY-MM-DD", "seller": 字符串, "buyer": 字符串, "invoiceType": 字符串, "items": [{"name":字符串,"category":字符串,"price":数值,"quantity":数值}] }
+	switch (type) {
+		case 'fapiao':
+			return basePrompt + `
+				Task in two steps, strictly in order:
+				Step 1: Extract key fields from one or more invoices provided by the user and output as valid JSON, example:
+				{ "amount": number, "taxId": string, "date": "YYYY-MM-DD", "seller": string, "buyer": string, "invoiceType": string, "items": [{"name":string,"category":string,"price":number,"quantity":number}] }
 
-        第二步：根据上述提取的发票信息，结合用户提供的 Excel 列定义，生成一个包含该发票数据的 Excel 文件，并返回其 base64 编码字符串。
+				Step 2: Based on the extracted invoice info and user-provided Excel column definitions, generate an Excel file containing the invoice data and return its base64 encoded string.
 
-        最终输出格式（严格遵守）：
-        <第一行：JSON 对象>
-        <第二行：base64 字符串>
+				Final output format (strictly follow):
+				<First line: JSON object>
+				<Second line: base64 string>
 
-        注意：不要输出任何其他内容，包括“好的”、“以下是…”等。`;
+				Note: Do not output any other content, including "OK", "Here is...", etc.`;
     
-    case 'parseExcel':
-      return basePrompt + `
-        请从用户提供的 Excel 文件内容中提取所有列名（即第一行表头），并以 JSON 数组格式返回。
-        示例输出：["日期","金额","商户","分类"]
-        要求：
-        - 仅输出 JSON 数组；
-        - 不要任何额外文本、解释或格式；
-        - 列名顺序必须与原始文件一致。`;
+		case 'parseExcel':
+			return basePrompt + `
+				Extract all column names (first row headers) from the user-provided Excel file and return as a JSON array.
+				Example output: ["Date","Amount","Merchant","Category"]
+				Requirements:
+				- Only output JSON array;
+				- Do not add any extra text, explanation, or format;
+				- Column order must match the original file.`;
     
-    case 'generateExcel':
-      return basePrompt + `
-        请根据用户提供的发票数据数组和 Excel 列定义，将数据按列映射后生成一个 Excel 文件，并返回其 base64 编码字符串。
-        要求：
-        - 仅输出 base64 字符串；
-        - 不要任何 JSON、解释、换行或其他字符；
-        - 确保 base64 可被直接解码为有效 .xlsx 文件。`;
+		case 'generateExcel':
+			return basePrompt + `
+				Based on the user-provided invoice data array and Excel column definitions, map the data to columns and generate an Excel file, then return its base64 encoded string.
+				Requirements:
+				- Only output base64 string;
+				- Do not add any JSON, explanation, line breaks, or other characters;
+				- Ensure base64 can be directly decoded to a valid .xlsx file.`;
     
-    default:
-      return basePrompt;
-  }
+		default:
+			return basePrompt;
+	}
 }
 
 function parseRawInvoiceFromText(text) {
@@ -382,7 +427,7 @@ function parseRawInvoiceFromText(text) {
     };
     return fapiao;
     } catch (e) {
-    // 不是 JSON——回退到正则抽取
+	// Not JSON—fallback to regex extraction
     }
 
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -436,6 +481,7 @@ module.exports = {
 	getUploadedFiles,
     message,
     parseRawInvoiceFromText,
-    parseRawInvoiceFromJson
+    parseRawInvoiceFromJson,
+    parsePdfText
 };
 

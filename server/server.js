@@ -4,30 +4,30 @@ const axios = require('axios');
 const cors = require('cors');
 const multer = require('multer');
 const { getUploadedFiles, message, parseExcelOrCsv, parseRawInvoiceFromJson,
-  parseQwenResponse, extractJsonAndExcel, safeJson } = require('./utils');
+  parseQwenResponse, extractJsonAndExcel, safeJson, parsePdfText, parseRawInvoiceFromText } = require('./utils');
 let XLSX_LIB = null;
 try { XLSX_LIB = require('xlsx'); } catch (e) { XLSX_LIB = null; }
 
 const app = express();
 
-// 启用 CORS（本地开发无需配置，但建议保留）
+// Enable CORS (recommended for local development)
 app.use(cors());
 
-// 解析 JSON 和 urlencoded（避免 req.body 为 undefined 的情况）
+// Parse JSON and urlencoded (to avoid req.body being undefined)
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 处理文件上传
+// Handle file uploads
 const upload = multer({ storage: multer.memoryStorage() });
 
-// 解析模板：将模板文件发送到 Qwen，请求返回模板字段数组（JSON）
+// Parse template: send template file to Qwen, request returns template field array (JSON)
 app.post('/api/parse-template', upload.any(), async (req, res) => {
   try {
     const token = (req.body && req.body.token) || (req.headers && (req.headers.authorization || req.headers.Authorization) && (req.headers.authorization || req.headers.Authorization).replace(/^Bearer\s+/i, '')) || null;
-    if (!token) return res.status(400).json({ error: 'Missing token' });
-    const uploaded = getUploadedFiles(req, ['template', 'file'])[0];
-    const templateBuffer = uploaded && uploaded.buffer;
-    if (!templateBuffer) return res.status(400).json({ error: 'Missing template file. Upload file field named "template" or "file" as multipart/form-data.' });
+  if (!token) return res.status(400).json({ error: 'Missing token' });
+  const uploaded = getUploadedFiles(req, ['template', 'file'])[0];
+  const templateBuffer = uploaded && uploaded.buffer;
+  if (!templateBuffer) return res.status(400).json({ error: 'Missing template file. Upload file field named "template" or "file" as multipart/form-data.' });
     const text = await parseExcelOrCsv(templateBuffer);
     const messageContent = message('parseExcel') + text;
 
@@ -53,15 +53,15 @@ app.post('/api/parse-template', upload.any(), async (req, res) => {
         'Content-Type': 'application/json'
       }
     });
-    // 使用 parseQwenResponse 提取并清理模型返回的文本/JSON
-    const parsedResp = parseQwenResponse(response);
-    console.log('Qwen template parse cleaned:', parsedResp.combined);
+  // Use parseQwenResponse to extract and clean model returned text/JSON
+  const parsedResp = parseQwenResponse(response);
+  console.log('Qwen template parse cleaned:', parsedResp.combined);
 
-    // 如果解析出数组则直接返回
-    if (parsedResp.parsed && Array.isArray(parsedResp.parsed)) return res.json(parsedResp.parsed);
+  // If an array is parsed, return directly
+  if (parsedResp.parsed && Array.isArray(parsedResp.parsed)) return res.json(parsedResp.parsed);
 
-    // 否则尝试从合并文本或首个片段解析为数组（保留原始 response 以便调试）
-    const raw = parsedResp.combined || parsedResp.cleanedTexts[0] || JSON.stringify(response.data);
+  // Otherwise, try to parse array from merged text or first fragment (keep original response for debugging)
+  const raw = parsedResp.combined || parsedResp.cleanedTexts[0] || JSON.stringify(response.data);
 
     try {
       const arr = JSON.parse(raw);
@@ -80,43 +80,94 @@ app.post('/api/parse-template', upload.any(), async (req, res) => {
       }
     }
 
-    res.json({ raw: raw, cleanedTexts: parsedResp.cleanedTexts, original: response.data });
+  res.json({ raw: raw, cleanedTexts: parsedResp.cleanedTexts, original: response.data });
   } catch (err) {
-    console.error('parse-template error', err.response?.data || err.message || err);
-    res.status(500).json({ error: err.message || String(err) });
+  console.error('parse-template error', err.response?.data || err.message || err);
+  res.status(500).json({ error: err.message || String(err) });
   }
 });
 
-// 代理路由：接收发票图片 + Token → 转发给 Qwen
+// Proxy route: receive invoice image + Token → forward to Qwen
 app.post('/api/parse-fapiao', upload.any(), async (req, res) => {
   try {
 
-    // 从前端获取 Token（支持 multipart/form-data 字段、JSON body，或 Authorization header）
+  // Get token from frontend (supports multipart/form-data field, JSON body, or Authorization header)
     const token = (req.body && req.body.token) ||
       (req.headers && (req.headers.authorization || req.headers.Authorization) &&
         (req.headers.authorization || req.headers.Authorization).replace(/^Bearer\s+/i, '')) ||
       null;
 
-    // 如果没有 token，返回更明确的错误
+    // If no token, return a more specific error
     if (!token) {
       console.error('Missing token: no token found in req.body or Authorization header');
       return res.status(400).json({ error: 'Missing token. Send token as form field `token` (multipart/form-data) or as Authorization: Bearer <token> header.' });
     }
 
     const templateHeaders = req.body?.templateHeaders ?? [];
-    if (!templateHeaders) return res.status(400).json({ error: 'Missing headers' });
+  if (!templateHeaders) return res.status(400).json({ error: 'Missing headers' });
 
-    // Support various field names: prefer 'image', then 'file'
-    const uploadedFiles = getUploadedFiles(req, ['image', 'file']);
-    if (uploadedFiles.length === 0) {
-      console.error('No uploaded files found in req.files');
-      return res.status(400).json({ error: 'Missing image file. Upload a multipart/form-data file (field name: image or file).' });
+  // Gather all uploaded files (multer.any may populate req.files)
+    const allFiles = (req.files && Array.isArray(req.files) && req.files.length > 0) ? req.files : (req.file ? [req.file] : []);
+    if (allFiles.length === 0) {
+      console.error('No uploaded files found in request');
+      return res.status(400).json({ error: 'Missing image/pdf file. Upload a multipart/form-data file (field name: image, file or pdf).' });
     }
 
+  // If any PDF is present, try fast text-extraction path first
+    const pdfFiles = allFiles.filter(f => (f.mimetype === 'application/pdf') || (f.originalname && f.originalname.toLowerCase().endsWith('.pdf')));
+    if (pdfFiles.length > 0) {
+      let parsedFromPdf = null;
+      for (const pf of pdfFiles) {
+        try {
+          const pdfResult = await parsePdfText(pf.buffer || pf.path || pf);
+          const text = pdfResult && pdfResult.text ? pdfResult.text : '';
+          // Try to parse invoice directly from extracted text
+          const candidate = parseRawInvoiceFromText(text);
+          if (candidate && candidate.amount) {
+            parsedFromPdf = candidate;
+            break;
+          }
+        } catch (e) {
+          console.warn('PDF text extraction failed for one file:', e.message || e);
+          // continue to next pdf
+        }
+      }
+
+      if (parsedFromPdf) {
+        // Optionally generate a tiny excel (one-row) if xlsx lib available
+        let excelBase64 = '';
+        if (XLSX_LIB) {
+          try {
+            const wb = XLSX_LIB.utils.book_new();
+            const row = {
+              amount: parsedFromPdf.amount,
+              taxId: parsedFromPdf.taxId,
+              date: parsedFromPdf.date,
+              seller: parsedFromPdf.seller,
+              buyer: parsedFromPdf.buyer,
+              invoiceType: parsedFromPdf.invoiceType,
+              items: JSON.stringify(parsedFromPdf.items || [])
+            };
+            const ws = XLSX_LIB.utils.json_to_sheet([row]);
+            XLSX_LIB.utils.book_append_sheet(wb, ws, 'Sheet1');
+            const buffer = XLSX_LIB.write(wb, { type: 'buffer', bookType: 'xlsx' });
+            excelBase64 = buffer.toString('base64');
+          } catch (e) {
+            console.warn('Failed to generate excel from parsed PDF:', e.message || e);
+            excelBase64 = '';
+          }
+        }
+
+        return res.json({ parsedFapiao: parsedFromPdf, excelBase64 });
+      }
+      // else fallthrough to image/multimodal path for other files
+    }
+
+  // Build image data URLs for non-pdf files and proceed with multimodal flow
+    const nonPdfFiles = allFiles.filter(f => !(f.mimetype === 'application/pdf' || (f.originalname && f.originalname.toLowerCase().endsWith('.pdf'))));
     const base64Images = [];
-    for (const f of uploadedFiles) {
-      const imageBuffer = f.buffer; // 发票图片二进制
-      // 使用上传文件的 mimetype 构造 data URL 前缀，避免模型将裸 base64 误当成 URL
+    for (const f of nonPdfFiles) {
+      const imageBuffer = f.buffer; // Invoice image binary
       const mimeType = (f.mimetype) || 'image/jpeg';
       const base64Str = imageBuffer.toString('base64');
       const base64Image = `data:${mimeType};base64,${base64Str}`;
@@ -127,7 +178,7 @@ app.post('/api/parse-fapiao', upload.any(), async (req, res) => {
     content.push({ text: messageContent });
     console.log('token', token);
 
-    // 调用 Qwen API，不在后端保存 token——直接使用来自请求的 token
+  // Call Qwen API, do not save token on backend—use token from request directly
     const qwenUrl = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
     const payload = {
       model: 'qwen-vl-max',
@@ -157,7 +208,7 @@ app.post('/api/parse-fapiao', upload.any(), async (req, res) => {
     const parsedFapiao = parseRawInvoiceFromJson(parsedResp.json ||'');
     console.log('Qwen fapiao parse cleaned:', JSON.stringify(parsedFapiao));
 
-    // 返回 JSON：parsed 发票对象 + excel 的 base64 字符串（前端负责转换为 Blob）
+  // Return JSON: parsed invoice object + excel base64 string (frontend converts to Blob)
     const excelBase64 = parsedResp.excel || '';
     res.json({
       parsedFapiao,
@@ -169,9 +220,9 @@ app.post('/api/parse-fapiao', upload.any(), async (req, res) => {
   }
 });
 
-// 启动服务器
+// Start server
 const PORT = 5000;
 app.listen(PORT, () => {
-  console.log(`✅ 本地代理服务器已启动: http://localhost:${PORT}`);
-  console.log('✅ 使用模型: qwen-max (千问3-Max)');
+  console.log(`✅ Local proxy server started: http://localhost:${PORT}`);
+  console.log('✅ Using model: qwen-max (Qwen 3-Max)');
 });

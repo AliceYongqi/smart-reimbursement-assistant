@@ -18,7 +18,7 @@ const FileUploadSection: React.FC<FileUploadSectionProps> = ({
   return (
     <div className={styles.uploadSection}>
       <div className={styles.uploadBox}>
-        <label>1. 上传 Excel 模板</label>
+        <label>1. Upload Excel Template</label>
         {/* <input className={`${styles.btn} ${styles.btnUplaod}`} */}
         <input
           type="file"
@@ -29,7 +29,7 @@ const FileUploadSection: React.FC<FileUploadSectionProps> = ({
       </div>
 
       <div className={styles.uploadBox}>
-        <label>2. 上传发票文件（支持 JPG/PNG/PDF）</label>
+        <label>2. Upload Invoice Files (supports JPG/PNG/PDF)</label>
         {/* <input className={`${styles.btn} ${styles.btnUplaod}`} */}
         <input
           type="file"
