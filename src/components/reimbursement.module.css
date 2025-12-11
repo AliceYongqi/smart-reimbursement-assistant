@@ -136,6 +136,12 @@
 /* .btnUplaod {
 
 } */
+.flex {
+  display: flex;
+  align-items: baseline !important;
+  gap: 6px;
+}
+
 .downloadBtn {
   margin-top: 15px;
   padding: 8px 16px;
