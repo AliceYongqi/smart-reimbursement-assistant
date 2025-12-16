@@ -1,5 +1,7 @@
 const fs = require('fs');
 const path = require('path');
+const { fromPath, fromBuffer } = require('pdf2pic');
+
 let XLSX;
 
 try {
@@ -29,6 +31,9 @@ async function parseExcelOrCsv(input) {
 		throw new Error("Missing dependency 'xlsx'. Please run 'npm install xlsx' in the server folder.");
 	}
 
+	if (!input) {
+		return '';
+	}
 	let workbook;
 
 	// Buffer input
@@ -193,30 +198,47 @@ function parseJsonData(raw) {
 	return null;
 }
 
-// Helper: get uploaded file by preferred field names or fallback to first file
-function getUploadedFiles(req, preferred = []) {
-	// multer.single populates req.file; multer.any populates req.files
-	if (req.file) return [req.file];
+/**
+ * 获取指定字段名的上传文件数组（严格按字段名匹配）
+ * @param {Object} req - Express request object
+ * @param {string} fieldName - 要获取的字段名（如 'image'、'pdf'）
+ * @returns {Array} 匹配的文件数组（可能为空）
+ */
+function getUploadedFiles(req, fieldName) {
+  // 处理单文件上传 (multer.single)
+  if (req.file) {
+    // 如果指定了字段名且匹配，返回包含该文件的数组
+    if (fieldName && req.file.fieldname === fieldName) {
+      return [req.file];
+    }
+    // 如果未指定字段名，返回单个文件的数组
+    if (!fieldName) {
+      return [req.file];
+    }
+    // 指定了字段名但不匹配，返回空数组
+    return [];
+  }
 
-	if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-		// If preferred field names are provided, return ALL files whose fieldname
-		// matches any of the preferred names (preserving original order).
-		if (Array.isArray(preferred) && preferred.length > 0) {
-			const matched = req.files.filter(f => preferred.includes(f.fieldname));
-			if (matched.length > 0) return matched;
-		}
-		// Fallback: return all uploaded files
-		return req.files;
-	}
-	return null;
+  // 处理多文件上传 (multer.array/multer.fields)
+  if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+    // 如果指定了字段名，返回所有匹配的文件
+    if (fieldName) {
+      return req.files.filter(file => file.fieldname === fieldName);
+    }
+    // 未指定字段名，返回所有文件
+    return req.files;
+  }
+
+  // 没有上传文件
+  return [];
 }
 
-function message(type, summary = true) {
-  const basePrompt = `你是一位拥有10年经验的高级财务专家，专精处理发票、Excel数据和财务报表。你能快速解析发票信息，精通Excel函数，用简单大白话解释报表逻辑，保持耐心又幽默。重要规则：所有回答必须严格遵循用户指定的输出格式；禁止添加任何解释、注释、Markdown、中文说明或额外文本；只输出要求的内容，前后不要加任何字符。`;
+function message(type, summary = true, custom = '') {
+  const basePrompt = `你是一位拥有10年经验的高级财务专家，专精处理发票、Excel数据和财务报表。你能快速解析发票信息，精通Excel函数。
+  	重要规则(严格遵守)：所有回答必须严格遵循用户指定的输出格式；禁止添加任何解释、注释、Markdown、中文说明或额外文本；只输出要求的内容，前后不要加任何字符。`;
 
   const taskPrompts = {
     'fapiao-header': `
-      任务分三步：
       1. 从发票内容提取重要字段，以合法JSON格式输出，关键信息包括但不限于：金额、税号、日期、销售方、购买方、发票类型，以及商品明细（名称、类别、单价、数量等）。请从财务处理的角度判断哪些信息是重要的，并确保输出的JSON格式正确。
 	  	最终输出格式：<JSON object[]>
 	  2. 请对第一步发票数据进行汇总分析，生成JSON格式统计信息。统计内容包括总金额、发票数量，按项目和日期分别汇总的总金额与发票数量。输出格式为{summary: object}，summary中包含上述统计项。若输入数据为空或字段缺失，返回空统计结果。结果push到第1步生成的object[]数组后面。
@@ -227,8 +249,8 @@ function message(type, summary = true) {
       
       注意：仅输出要求内容，无额外文本。
     `,
+
     'fapiao': `
-      任务分三步：
       1. 从发票内容提取重要字段，以合法JSON格式输出，关键信息包括但不限于：金额、税号、日期、销售方、购买方、发票类型，以及商品明细（名称、类别、单价、数量等）。请从财务处理的角度判断哪些信息是重要的，并确保输出的JSON格式正确。
 	  	最终输出格式：<JSON object[]>
 	  2. 请对第一步发票数据进行汇总分析，生成JSON格式统计信息。统计内容包括总金额、发票数量，按项目和日期分别汇总的总金额与发票数量。输出格式为{summary: object}，summary中包含上述统计项。若输入数据为空或字段缺失，返回空统计结果。结果push到第1步生成的object[]数组后面。
@@ -238,16 +260,169 @@ function message(type, summary = true) {
       JSON object[]
 
       注意：仅输出要求内容，无额外文本。
+    `,
+
+	'fapiao-files': `
+      1. 从上传的发票内容提取重要字段，以合法JSON格式输出，关键信息包括但不限于：金额、税号、日期、销售方、购买方、发票类型，以及商品明细（名称、类别、单价、数量等）。请从财务处理的角度判断哪些信息是重要的，并确保输出的JSON格式正确。
+	  	最终输出格式：<JSON object[]>
+	  2. 请对第一步发票数据进行汇总分析，生成JSON格式统计信息。统计内容包括总金额、发票数量，按项目和日期分别汇总的总金额与发票数量。输出格式为{summary: object}，summary中包含上述统计项。若输入数据为空或字段缺失，返回空统计结果。结果push到第1步生成的object[]数组后面。
+      3. 根据提取的发票信息和报销规范智能生成表头（常见字段包括但不限于：日期、金额、商户、分类、税号等），生成表格并返回{csv: CSV格式data}，push到第2步生成的object[]数组后面。
+      	
+	  最终输出格式(严格遵守)：
+      JSON object[]
+
+      注意：仅输出要求内容，无额外文本。
+    `,
+
+	'fapiao-files-header': `
+      1. 从上传的发票内容提取重要字段，以合法JSON格式输出，关键信息包括但不限于：金额、税号、日期、销售方、购买方、发票类型，以及商品明细（名称、类别、单价、数量等）。请从财务处理的角度判断哪些信息是重要的，并确保输出的JSON格式正确。
+	  	最终输出格式：<JSON object[]>
+	  2. 请对第一步发票数据进行汇总分析，生成JSON格式统计信息。统计内容包括总金额、发票数量，按项目和日期分别汇总的总金额与发票数量。输出格式为{summary: object}，summary中包含上述统计项。若输入数据为空或字段缺失，返回空统计结果。结果push到第1步生成的object[]数组后面。
+      3. 文件列表的第一个文件为Excel模版文件，根据提取的发票信息和报销规范智能填写表格并返回{csv: CSV格式data}，push到第2步生成的object[]数组后面。
+      	
+	  最终输出格式(严格遵守)：
+      JSON object[]
+
+      注意：仅输出要求内容，无额外文本。
     `
   };
 
-  return basePrompt + (taskPrompts[type] || '') + (summary ? '' : '（忽略第二步汇总分析，仅完成第一步和第三步）');
+  return basePrompt + custom + (summary ? '任务分三步: ' : '任务分三步（忽略第二步汇总分析，仅完成第一步和第三步）: ') + (taskPrompts[type] || '');
 }
+
+async function pdfToText(input) {
+	let pdfBuffer;
+	if (typeof input === 'string') {
+		if (!fs.existsSync(input)) throw new Error(`PDF文件不存在: ${input}`);
+		pdfBuffer = fs.readFileSync(input);
+	} else if (Buffer.isBuffer(input)) {
+		pdfBuffer = input;
+	} else {
+		throw new Error('输入必须是文件路径字符串或Buffer对象');
+	}
+
+	const pdf = require('pdf-parse');
+	const data = await pdf(pdfBuffer);
+
+	return data.text;
+}
+
+// const pdfjs = require('pdfjs-dist');
+
+// // 加载 PDF 并提取带坐标的文本
+// async function extractTextWithPosition(pdfPath) {
+//   const data = new Uint8Array(fs.readFileSync(pdfPath));
+//   const doc = await pdfjs.getDocument({ data }).promise;
+//   const page = await doc.getPage(1);
+
+//   const content = await page.getTextContent();
+//   // content.items: [{ str: "文本", transform: [a,b,c,d,e,f] }]
+//   // transform[4] = x, transform[5] = y
+
+//   const texts = content.items.map(item => ({
+//     text: item.str,
+//     x: Math.round(item.transform[4]),
+//     y: Math.round(item.transform[5])
+//   }));
+
+//   return texts;
+// }
+
+// /**
+//  * 将PDF Buffer转换为图片
+//  * @param {Buffer} pdfBuffer - PDF文件Buffer
+//  * @param {string} outputDir - 输出目录
+//  * @param {string} prefix - 文件名前缀
+//  */
+async function convertPdfBufferToImages(pdfBuffer, outputDir, prefix = 'invoice') {
+  // 确保输出目录存在
+  await fs.mkdir(outputDir, { recursive: true });
+
+  const options = {
+    density: 300,
+    saveFilename: prefix,
+    savePath: outputDir,
+    format: 'png',
+    width: 2480,
+    height: 3508,
+    quality: 100
+  };
+
+  try {
+    // ✅ 使用 fromBuffer 直接处理 Buffer（推荐）
+    const convert = fromBuffer(pdfBuffer, options);
+    
+    // ✅ bulk() 现在返回 Promise，不传 callback
+    const convertResult = await convert.bulk(-1); // -1 表示所有页
+
+    // 构造生成的文件名（pdf2pic 默认格式：{prefix}.{page}.png）
+    const imagePaths = convertResult.map((_, index) => {
+      // 注意：页码从 1 开始
+      return path.join(outputDir, `${prefix}.${index + 1}.png`);
+    });
+
+    return imagePaths;
+  } catch (error) {
+    console.error('PDF 转图片失败:', error);
+    throw error;
+  }
+}
+
+// async function convertPdfBufferToImages(pdfBuffer, outputDir, prefix = 'invoice') {
+//   const tempPath = path.join(outputDir, `${prefix}_temp.pdf`);
+//   await fs.writeFile(tempPath, pdfBuffer);
+
+//   return new Promise((resolve, reject) => {
+//     const options = {
+//       density: 300,
+//       saveFilename: prefix,
+//       savePath: outputDir,
+//       format: 'png',
+//       width: 2480,
+//       height: 3508,
+//       quality: 100
+//     };
+
+//     const storeAsImage = fromPath(tempPath, options);
+
+//     // ✅ 正确：bulk() 需要回调函数
+//     storeAsImage.bulk(-1, async (err, convertResult) => {
+//       if (err) {
+//         await fs.unlink(tempPath).catch(() => {});
+//         return reject(err);
+//       }
+
+//       try {
+//         // 读取生成的图片文件
+//         const files = await fs.readdir(outputDir);
+//         const images = files
+//           .filter(f => f.startsWith(prefix) && f.endsWith('.png'))
+//           .sort((a, b) => {
+//             const matchA = a.match(/\.(\d+)\.png$/);
+//             const matchB = b.match(/\.(\d+)\.png$/);
+//             const numA = matchA ? parseInt(matchA[1]) : 0;
+//             const numB = matchB ? parseInt(matchB[1]) : 0;
+//             return numA - numB;
+//           })
+//           .map(f => path.join(outputDir, f));
+
+//         // 删除临时PDF
+//         await fs.unlink(tempPath);
+        
+//         resolve(images);
+//       } catch (error) {
+//         reject(error);
+//       }
+//     });
+//   });
+// }
 
 module.exports = {
 	parseExcelOrCsv,
 	parseQwenResponseText,
 	getUploadedFiles,
-    message,
-    parseJsonData
+	message,
+	parseJsonData,
+	pdfToText,
+	convertPdfBufferToImages
 };

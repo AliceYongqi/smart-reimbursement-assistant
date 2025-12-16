@@ -4,8 +4,7 @@ import ReimbursementUI from "./reimbursementUI";
 import {
   parseInvoiceWithQwen,
 } from "../utils/qwenApi";
-import { generateFilledExcel } from "../utils/excelUtils";
-import { downloadJson, downloadExcel } from "../utils/downloadUtils";
+import { downloadJson, downloadExcel } from "../utils/utils";
 import { type RawInvoice, type OutputJson } from "../types";
 
 function ReimbursementPopup() {

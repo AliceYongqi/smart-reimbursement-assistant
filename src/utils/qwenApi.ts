@@ -1,6 +1,6 @@
 // src/utils/qwenApi.ts
 import { type RawInvoice, type OutputJson } from "../types";
-import { getExcelBlobFromBase64 } from "./excelUtils";
+import { pdfToImages, dataURLToFile } from "./utils";
 
 /**
  * 将多张发票文件发送到后端/大模型解析。可选地传入模板文件，允许模型根据模板优化解析结果。
@@ -9,16 +9,25 @@ export async function parseInvoiceWithQwen(
   fapiaoFiles: File[],
   token: string,
   templateFile?: File,
-  /** 是否汇总金额，默认为 true */
   aggregate: boolean = true
 ) {
   try {
     const formData = new FormData();
     for(const file of fapiaoFiles) {
-      formData.append("fapiao", file);
+      if (file.type === 'application/pdf' || file.name?.endsWith('.pdf')) {
+        const dataUrl = await pdfToImages(file);
+        // const fileImage = dataURLToBlob(dataUrl);
+        const fileImage = dataURLToFile(dataUrl, `${file.name}.jpg`);
+        formData.append('fapiao', fileImage);
+        console.log("Converted invoice to images:", dataUrl.slice(0, 30) + "...");
+      } else {
+        formData.append("fapiao", file);
+      }
     }
+
     formData.append("token", token);
     if (templateFile) formData.append("template", templateFile);
+
     // 将汇总选项发送给后端（字符串形式）
     formData.append("summary", String(aggregate));
 
