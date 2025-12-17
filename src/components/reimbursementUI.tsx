@@ -14,7 +14,7 @@ interface InvoiceUIProps {
   onSubmit: () => void;
   onKeyPress: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onTemplateSelect: (file: File) => void;
-  onInvoicesSelect: (files: File[]) => void;
+  onFapiaoSelect: (files: File[]) => void;
   templateFile: File | null;
   fapiaoFiles: File[] | null;
   onDownload: () => void; // 新增
@@ -27,7 +27,7 @@ const ReimbursementUI: React.FC<InvoiceUIProps> = ({
   onSubmit,
   onKeyPress,
   onTemplateSelect,
-  onInvoicesSelect,
+  onFapiaoSelect,
   templateFile,
   fapiaoFiles,
   onDownload,
@@ -60,7 +60,7 @@ const ReimbursementUI: React.FC<InvoiceUIProps> = ({
 
       <FileUploadSection
         onTemplateSelect={onTemplateSelect}
-        onInvoicesSelect={onInvoicesSelect}
+        onFapiaoSelect={onFapiaoSelect}
         templateFile={templateFile}
         fapiaoFiles={fapiaoFiles}
       />
@@ -89,7 +89,7 @@ const ReimbursementUI: React.FC<InvoiceUIProps> = ({
       )}
 
       <div className={styles.footer}>
-        <p>Supports VAT/Electronic/Roll Invoices · All requests are processed via Qwen API</p>
+        <p>Supports VAT/Electronic/Roll Fapiao · All requests are processed via Qwen API</p>
       </div>
     </div>
   );

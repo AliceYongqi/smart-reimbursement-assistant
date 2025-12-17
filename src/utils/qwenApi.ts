@@ -1,9 +1,8 @@
-// src/utils/qwenApi.ts
-import { type RawInvoice, type OutputJson } from "../types";
 import { pdfToImages, dataURLToFile } from "./utils";
 
 /**
- * 将多张发票文件发送到后端/大模型解析。可选地传入模板文件，允许模型根据模板优化解析结果。
+ * Upload multiple fapiao files to the backend/large model for parsing. 
+ * Optionally provide a template file to allow the model to optimize parsing results based on the template.
  */
 export async function parseInvoiceWithQwen(
   fapiaoFiles: File[],
@@ -19,7 +18,7 @@ export async function parseInvoiceWithQwen(
         // const fileImage = dataURLToBlob(dataUrl);
         const fileImage = dataURLToFile(dataUrl, `${file.name}.jpg`);
         formData.append('fapiao', fileImage);
-        console.log("Converted invoice to images:", dataUrl.slice(0, 30) + "...");
+        console.log("Converted fapiao to images:", dataUrl.slice(0, 30) + "...");
       } else {
         formData.append("fapiao", file);
       }
@@ -28,7 +27,7 @@ export async function parseInvoiceWithQwen(
     formData.append("token", token);
     if (templateFile) formData.append("template", templateFile);
 
-    // 将汇总选项发送给后端（字符串形式）
+    // Send summary options to the backend as a string.
     formData.append("summary", String(aggregate));
 
     const res = await fetch("http://localhost:5000/api/parse-fapiao", {

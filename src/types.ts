@@ -1,4 +1,3 @@
-// src/types.ts
 export interface RawInvoice {
   amount: number;
   taxId: string;
@@ -15,7 +14,7 @@ export interface RawInvoice {
 }
 
 export interface OutputJson {
-  invoices: RawInvoice[];
+  fapiao: RawInvoice[];
   summary: {
     totalAmount: number;
     byCategory: Record<string, { count: number; total: number }>;

@@ -3,14 +3,14 @@ import styles from "./reimbursement.module.css";
 
 interface FileUploadSectionProps {
   onTemplateSelect: (file: File) => void;
-  onInvoicesSelect: (files: File[]) => void;
+  onFapiaoSelect: (files: File[]) => void;
   templateFile: File | null;
   fapiaoFiles: File[] | null;
 }
 
 const FileUploadSection: React.FC<FileUploadSectionProps> = ({
   onTemplateSelect,
-  onInvoicesSelect,
+  onFapiaoSelect,
   templateFile,
   fapiaoFiles,
 }) => {
@@ -35,7 +35,7 @@ const FileUploadSection: React.FC<FileUploadSectionProps> = ({
         ) : (
           <p style={{ fontSize: 12, color: "#666", marginTop: 6 }}>
             (Optional) You may skip uploading a template — the assistant will
-            automatically generate the table based on the invoice contents.
+            automatically generate the table based on the fapiao contents.
           </p>
         )}
       </div>
@@ -48,7 +48,7 @@ const FileUploadSection: React.FC<FileUploadSectionProps> = ({
           multiple
           id="fapiao-upload"
           style={{ display: 'none' }}
-          onChange={(e) => e.target.files && onInvoicesSelect(Array.from(e.target.files))}
+          onChange={(e) => e.target.files && onFapiaoSelect(Array.from(e.target.files))}
         />
         <label htmlFor="fapiao-upload" className={styles.btnUplaod}>
           📄 Select file

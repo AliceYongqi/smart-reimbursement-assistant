@@ -88,15 +88,15 @@ async function parseExcelOrCsv(input) {
 }
 
 /**
- * 从 Qwen 返回的 text 字符串中解析出 JSON 数据和 CSV 内容
- * @param {string} text - Qwen 返回的 content[0].text
+ * Parses JSON data and CSV content from the text string returned by Qwen
+ * @param {string} text - The content[0].text returned by Qwen
  * @returns {{ jsonData: any[], csvContent: string }}
  */
 function parseQwenResponseText(responseData) {
-  // 解析 JSON
+    // parse JSON
 	let jsonData = [];
 	try {
-		// responseData 可能是字符串或已解析的对象
+		// responseData may be a string or a parsed object
 		let respObj = responseData;
 		if (typeof responseData === 'string') {
 			try {
@@ -106,24 +106,24 @@ function parseQwenResponseText(responseData) {
 			}
 		}
 
-		// 从常见 Qwen 返回结构中取出 text
+		// Extract text from common Qwen response structure
 		let text = null;
 		try {
 			if (respObj && respObj.output && Array.isArray(respObj.output.choices)) {
 				text = respObj.output.choices[0].message.content[0].text;
 			}
 		} catch (e) {
-			// 忽略，下面会把 responseData 当字符串处理
+			// Ignore, will treat responseData as a string below
 		}
 
 		if (!text) {
 			text = typeof responseData === 'string' ? responseData : JSON.stringify(responseData);
 		}
 
-		// 使用通用解析器解析 text，保持结构不变
+		// Parse the text using a generic parser, preserving the original structure.
 		jsonData = parseJsonData(text) || [];
 	} catch (err) {
-		console.error('JSON 解析失败:', err);
+		console.error('JSON parse failed:', err);
 		jsonData = [];
 	}
 
@@ -133,9 +133,9 @@ function parseQwenResponseText(responseData) {
 }
 
 /**
- * 将任意 jsonData（字符串/对象/数组）解析成 JS 对象并保持结构。
- * - 如果是对象或数组，返回其深拷贝（以防外部修改）
- * - 如果是字符串，先尝试 JSON.parse，解析失败则尝试从字符串中提取第一个完整 JSON 块再解析
+ * Parses any data (string/object/array) into a JavaScript object while preserving structure.
+ * - If it's an object or array, returns a deep copy (to prevent external modifications from affecting it)
+ * - If it's a string, first attempts JSON.parse; if that fails, tries to extract the first complete JSON block from the string and then parse it.
  * @param {string|object|array} raw
  * @returns {any|null}
  */
@@ -153,14 +153,13 @@ function parseJsonData(raw) {
 	const s = String(raw).trim();
 	if (!s) return null;
 
-	// 直接尝试 parse
 	try {
 		return JSON.parse(s);
 	} catch (e) {
-		// 继续尝试提取
+		// Continue attempting to extract.
 	}
 
-	// 查找第一个 { 或 [ 并匹配到对应闭合符
+	// Locate the first { or [ and match it to the corresponding closing bracket.
 	const idxObj = s.indexOf('{');
 	const idxArr = s.indexOf('[');
 	let start = -1;
@@ -199,37 +198,31 @@ function parseJsonData(raw) {
 }
 
 /**
- * 获取指定字段名的上传文件数组（严格按字段名匹配）
+ * Retrieves an array of uploaded files for the specified field name (strictly matched by field name)
  * @param {Object} req - Express request object
- * @param {string} fieldName - 要获取的字段名（如 'image'、'pdf'）
- * @returns {Array} 匹配的文件数组（可能为空）
+ * @param {string} fieldName - The field name to retrieve (e.g., 'image', 'pdf')
+ * @returns {Array} An array of matching files (possibly empty)
  */
 function getUploadedFiles(req, fieldName) {
-  // 处理单文件上传 (multer.single)
+  // Handle single file upload (multer.single)
   if (req.file) {
-    // 如果指定了字段名且匹配，返回包含该文件的数组
     if (fieldName && req.file.fieldname === fieldName) {
       return [req.file];
     }
-    // 如果未指定字段名，返回单个文件的数组
     if (!fieldName) {
       return [req.file];
     }
-    // 指定了字段名但不匹配，返回空数组
     return [];
   }
 
-  // 处理多文件上传 (multer.array/multer.fields)
+  // Handle multiple file uploads (multer.array/multer.fields)
   if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-    // 如果指定了字段名，返回所有匹配的文件
     if (fieldName) {
       return req.files.filter(file => file.fieldname === fieldName);
     }
-    // 未指定字段名，返回所有文件
     return req.files;
   }
 
-  // 没有上传文件
   return [];
 }
 
@@ -293,12 +286,12 @@ function message(type, summary = true, custom = '') {
 async function pdfToText(input) {
 	let pdfBuffer;
 	if (typeof input === 'string') {
-		if (!fs.existsSync(input)) throw new Error(`PDF文件不存在: ${input}`);
+		if (!fs.existsSync(input)) throw new Error(`PDF file not found: ${input}`);
 		pdfBuffer = fs.readFileSync(input);
 	} else if (Buffer.isBuffer(input)) {
 		pdfBuffer = input;
 	} else {
-		throw new Error('输入必须是文件路径字符串或Buffer对象');
+		throw new Error('The input must be a file path string or a Buffer object.');
 	}
 
 	const pdf = require('pdf-parse');
@@ -309,7 +302,7 @@ async function pdfToText(input) {
 
 // const pdfjs = require('pdfjs-dist');
 
-// // 加载 PDF 并提取带坐标的文本
+// // Load PDF and extract text with coordinates
 // async function extractTextWithPosition(pdfPath) {
 //   const data = new Uint8Array(fs.readFileSync(pdfPath));
 //   const doc = await pdfjs.getDocument({ data }).promise;
@@ -328,14 +321,14 @@ async function pdfToText(input) {
 //   return texts;
 // }
 
-// /**
-//  * 将PDF Buffer转换为图片
-//  * @param {Buffer} pdfBuffer - PDF文件Buffer
-//  * @param {string} outputDir - 输出目录
-//  * @param {string} prefix - 文件名前缀
-//  */
-async function convertPdfBufferToImages(pdfBuffer, outputDir, prefix = 'invoice') {
-  // 确保输出目录存在
+/**
+ * Converts a PDF Buffer to image files
+ * @param {Buffer} pdfBuffer - The PDF file as a Buffer object
+ * @param {string} outputDir - Directory to save the output images
+ * @param {string} prefix - Prefix for generated image filenames
+ */
+async function convertPdfBufferToImages(pdfBuffer, outputDir, prefix = 'fapiao') {
+  // Ensure the output directory exists.
   await fs.mkdir(outputDir, { recursive: true });
 
   const options = {
@@ -349,26 +342,23 @@ async function convertPdfBufferToImages(pdfBuffer, outputDir, prefix = 'invoice'
   };
 
   try {
-    // ✅ 使用 fromBuffer 直接处理 Buffer（推荐）
     const convert = fromBuffer(pdfBuffer, options);
-    
-    // ✅ bulk() 现在返回 Promise，不传 callback
-    const convertResult = await convert.bulk(-1); // -1 表示所有页
+    const convertResult = await convert.bulk(-1); // -1 means all pages
 
-    // 构造生成的文件名（pdf2pic 默认格式：{prefix}.{page}.png）
+    // Construct generated filenames (pdf2pic default format: {prefix}.{page}.png)
     const imagePaths = convertResult.map((_, index) => {
-      // 注意：页码从 1 开始
+      // Note: page numbers start from 1
       return path.join(outputDir, `${prefix}.${index + 1}.png`);
     });
 
     return imagePaths;
   } catch (error) {
-    console.error('PDF 转图片失败:', error);
+    console.error('PDF to image conversion failed:', error);
     throw error;
   }
 }
 
-// async function convertPdfBufferToImages(pdfBuffer, outputDir, prefix = 'invoice') {
+// async function convertPdfBufferToImages(pdfBuffer, outputDir, prefix = 'fapiao') {
 //   const tempPath = path.join(outputDir, `${prefix}_temp.pdf`);
 //   await fs.writeFile(tempPath, pdfBuffer);
 
@@ -385,7 +375,6 @@ async function convertPdfBufferToImages(pdfBuffer, outputDir, prefix = 'invoice'
 
 //     const storeAsImage = fromPath(tempPath, options);
 
-//     // ✅ 正确：bulk() 需要回调函数
 //     storeAsImage.bulk(-1, async (err, convertResult) => {
 //       if (err) {
 //         await fs.unlink(tempPath).catch(() => {});
@@ -393,7 +382,7 @@ async function convertPdfBufferToImages(pdfBuffer, outputDir, prefix = 'invoice'
 //       }
 
 //       try {
-//         // 读取生成的图片文件
+//         // Read generated image files
 //         const files = await fs.readdir(outputDir);
 //         const images = files
 //           .filter(f => f.startsWith(prefix) && f.endsWith('.png'))
@@ -406,7 +395,7 @@ async function convertPdfBufferToImages(pdfBuffer, outputDir, prefix = 'invoice'
 //           })
 //           .map(f => path.join(outputDir, f));
 
-//         // 删除临时PDF
+//         // Delete temporary PDF
 //         await fs.unlink(tempPath);
         
 //         resolve(images);

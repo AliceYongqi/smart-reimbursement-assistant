@@ -1,4 +1,3 @@
-// src/components/ReimbursementPopup.tsx
 import { useState, useRef } from "react";
 import ReimbursementUI from "./reimbursementUI";
 import {
@@ -16,7 +15,7 @@ function ReimbursementPopup() {
   const processedDataRef = useRef<{ excelBlob: Blob; json: any } | null>(null);
 
   const handleTemplateSelect = (file: File) => setTemplateFile(file);
-  const handleInvoicesSelect = (files: File[]) => setInvoiceFiles(files);
+  const handleFapiaoSelect = (files: File[]) => setInvoiceFiles(files);
 
   const handleTokenChange = (t: string) => {
     setToken(t);
@@ -24,11 +23,11 @@ function ReimbursementPopup() {
 
   const handleSubmit = async () => {
       if (!token.trim()) {
-      alert("请输入有效的千问 API Token! ");
+      alert("Please enter a valid Qwen API key!");
       return;
     }
     if (fapiaoFiles.length === 0) {
-      alert("请上传至少一张发票！");
+      alert("Please select at least one fapiao file.");
       return;
     }
 
@@ -39,7 +38,7 @@ function ReimbursementPopup() {
       // 解析所有发票, 并把 headers 一并传给后端以便填充Excel
       const result: any[] = await parseInvoiceWithQwen(fapiaoFiles, token, templateFile, aggregate);
 
-      console.log("Parsed invoices:", result);
+      console.log("Parsed fapiao:", result);
       const blob = new Blob(['\uFEFF' + result[result.length-1].csv], { type: 'text/csv;charset=utf-8' });
       // 缓存结果
       processedDataRef.current = { excelBlob: blob, json: result.slice(0, -1) };
@@ -47,7 +46,7 @@ function ReimbursementPopup() {
       setStatus("success");
     } catch (error) {
       console.error(error);
-      alert("处理失败：" + (error instanceof Error ? error.message : "未知错误"));
+      alert("Processing Failure: " + (error instanceof Error ? error.message : "Unknown error"));
       setStatus("idle");
     }
   };
@@ -55,8 +54,8 @@ function ReimbursementPopup() {
   const handleDownload = () => {
     if (!processedDataRef.current) return;
     const { excelBlob, json } = processedDataRef.current;
-    downloadExcel(excelBlob, "报销明细.csv");
-    downloadJson(json, "发票数据.json");
+    downloadExcel(excelBlob, "ReimbursementDetails.csv");
+    downloadJson(json, "FapiaoData.json");
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -71,7 +70,7 @@ function ReimbursementPopup() {
       onSubmit={handleSubmit}
       onKeyPress={handleKeyPress}
       onTemplateSelect={handleTemplateSelect}
-      onInvoicesSelect={handleInvoicesSelect}
+      onFapiaoSelect={handleFapiaoSelect}
       templateFile={templateFile}
       fapiaoFiles={fapiaoFiles}
       onDownload={handleDownload}
