@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -25,7 +24,7 @@ app.use(express.urlencoded({ extended: true }));
 // Handle file uploads
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Proxy route: receive invoice fapiao + Token → forward to Qwen
+// Proxy route: receive fapiao fapiao + Token → forward to Qwen
 app.post('/api/parse-fapiao', upload.any(), async (req, res) => {
   try {
 
@@ -132,9 +131,7 @@ app.post('/api/parse-fapiao', upload.any(), async (req, res) => {
 //     //   prefix
 //     // );
 
-//     // console.log(`转换完成，共 ${imagePaths.length} 页`);
 
-//     // console.log('开始上传图片到DashScope...');
 //     // const uploadPromises = imagePaths.map(imgPath => 
 //     //   uploadFile(imgPath, token)
 //     // );
@@ -146,12 +143,9 @@ app.post('/api/parse-fapiao', upload.any(), async (req, res) => {
 //     console.log('token', token);
 
 
-//     // 1. 上传文件
 //     const ids = await Promise.all(
 //       uploadedFapiao.map(file => uploadFile(file, token))
 //     );
-//     console.log('所有图片上传完成，file_ids:', ids);
-
 
 //     const messageContent = message(`fapiao-files${uploadedTemplate.length ? '-header' : ''}`, summary) + 
 //       `${uploadedTemplate.length ? `excel模版文件id如下: ${ids[0]} `: ''} 发票文件ID如下: ${ids.slice(1).join(', ')}`;
@@ -164,16 +158,13 @@ app.post('/api/parse-fapiao', upload.any(), async (req, res) => {
 
 const uploadFile = async (file, token) => {
   try {
-    // 在 Node 环境中使用 form-data 并上传 multer 提供的 buffer
+    // In a Node.js environment, use form-data and upload the buffer provided by Multer.
     const formData = new FormData();
-    // file 来自 multer，包含 buffer, originalname, mimetype
     const filename = file.originalname || file.name || 'upload.bin';
     const contentType = file.mimetype || 'application/octet-stream';
     formData.append('file', file.buffer, { filename, contentType });
     // formData.append('purpose', 'image');
 
-
-    // 使用 Axios 上传
     const response = await axios.post(
       'https://dashscope.aliyuncs.com/api/v1/files',
       formData,
@@ -186,13 +177,10 @@ const uploadFile = async (file, token) => {
     );
 
     const id = JSON.parse(JSON.stringify(response.data || {}))['data']['uploaded_files'][0]['file_id'];
-    console.log('API 响应数据', id);
-    // 返回 API 响应数据
     return id;
   } catch (error) {
-    // 处理错误（包括 HTTP 错误和网络错误）
-    console.error('文件上传失败:', error.response?.data || error.message);
-    throw new Error(`文件上传失败: ${error.response?.data?.message || error.message}`);
+    console.error('File upload failed:', error.response?.data || error.message);
+    throw new Error(`File upload failed: ${error.response?.data?.message || error.message}`);
   }
 };
 

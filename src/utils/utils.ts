@@ -1,4 +1,3 @@
-// src/utils/excelUtils.ts
 import * as XLSX from "xlsx";
 import type { RawInvoice } from "../types";
 import { saveAs } from "file-saver";
@@ -8,11 +7,7 @@ import { type OutputJson } from "../types";
 
 // @ts-ignore
 import workerSrc from 'url:pdfjs-dist/build/pdf.worker.min.mjs'
-
 import * as pdfjsLib from 'pdfjs-dist';
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
-
-// 设置worker路径
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
 export async function pdfToImages(pdfFile: File): Promise<string> {
@@ -30,31 +25,29 @@ export async function pdfToImages(pdfFile: File): Promise<string> {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     
-    // 设置缩放（DPI 控制）
+    // set scale (DPI control)
     const scale = 2.0;
     const viewport = page.getViewport({ scale });
     
-    // 创建 canvas
+    // create canvas
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d')!;
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     
-    // ✅ 关键：传入 canvas 而不是 canvasContext
+    // ✅ Key: pass canvas instead of canvasContext
     await page.render({
-      canvas,        // ← 必须传 canvas 元素
-      viewport       // ← viewport 可选，但建议传
+      canvas,        // ← must pass canvas element
+      viewport       // ← viewport optional but recommended
     }).promise;
     
-    // 转为 Data URL（可选 JPEG/PNG）
     image = canvas.toDataURL('image/jpeg', 0.95);
-    // images.push(canvas.toDataURL('image/jpeg', 0.95));
   }
   
   return image;
 }
 
-// 工具函数：Data URL → Blob
+// Data URL → Blob
 export function dataURLToBlob(dataURL: string): Blob {
   const [header, base64] = dataURL.split(',');
   const mime = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
@@ -66,7 +59,7 @@ export function dataURLToBlob(dataURL: string): Blob {
   return new Blob([array], { type: mime });
 }
 
-// 工具函数：Data URL → File（带文件名）
+// Data URL → File (with filename)
 export function dataURLToFile(dataURL: string, filename: string): File {
   const blob = dataURLToBlob(dataURL);
   return new File([blob], filename, { type: blob.type });

@@ -1,18 +1,19 @@
-/*  */
-.body {
-  background: none;
+body {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
+
 .container {
   background: rgba(0, 20, 40, 0.85);
   backdrop-filter: blur(12px);
   border-radius: 24px;
   padding: 10px 30px;
-  margin: 25px;
+  margin: 0;
   width: 600px;
   max-width: 600px;
   min-height: 480px;      /* added: minimum height for the popup */
-  max-height: 80vh;       /* added: limit height relative to viewport */
-  overflow-y: auto;      /* oadded: enable scrolling when content exceeds max-height */
+  max-height: 100%;       /* added: limit height relative to viewport */
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.4s ease;
@@ -21,13 +22,13 @@
 }
 
 .container:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 30px 60px -10px rgba(0, 30, 60, 0.7);
+  /* transform: translateY(-5px);
+  box-shadow: 0 30px 60px -10px rgba(0, 30, 60, 0.7); */
 }
 
 .container h1 {
-  font-size: 2.4rem;
-  margin-bottom: 25px;
+  margin-top: 5px;
+  font-size: 1.8rem;
   text-align: center;
   background: linear-gradient(to right, #00aaff, #006699);
   -webkit-background-clip: text;
@@ -37,8 +38,7 @@
 }
 
 .inputGroup {
-  width: 550px;
-  margin-bottom: 30px;
+  width: 560px;
 }
 
 .inputGroup label {
@@ -50,7 +50,7 @@
 
 .inputGroup input[type="text"] {
   width: 100%;
-  padding: 16px 20px;
+  padding: 12px 18px;
   border-radius: 16px;
   border: 2px solid #006699;
   background: rgba(0, 30, 50, 0.5);
@@ -60,6 +60,7 @@
   transition: border-color 0.3s;
 }
 
+.inputGroup input[type="text"]:hover,
 .inputGroup input[type="text"]:focus {
   border-color: #00aaff;
   box-shadow: 0 0 0 3px rgba(0, 170, 255, 0.2);
@@ -115,7 +116,6 @@
 }
 
 .footer {
-  margin-top: 35px;
   text-align: center;
   font-size: 0.9rem;
   color: #a0b8d0;
@@ -128,18 +128,36 @@
   margin-bottom: 15px;
 }
 .uploadBox input {
-  width: 100%;
+  width: 580px;
   padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  border-radius: 12px;
+  border: 2px solid #006699;
+  margin-top: 3px;
 }
-/* .btnUplaod {
+.btnUplaod {
+  display: block;
+  width: 580px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 2px solid #006699;
+  margin-top: 3px;
+}
 
-} */
+.btnUplaod:hover,
+.btnUplaod:focus {
+  border-color: #00aaff;
+  box-shadow: 0 0 0 3px rgba(0, 170, 255, 0.2);
+}
+
 .flex {
   display: flex;
-  align-items: baseline !important;
   gap: 6px;
+}
+
+.flex input[type="checkbox"] {
+  height: 15px;
+  width: 15px;
+  margin-bottom: 8px;
 }
 
 .downloadBtn {
@@ -150,4 +168,27 @@
   border: none;
   border-radius: 4px;
   cursor: pointer;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  border-bottom-style: solid;
+  border-color: white;
+  border-width: 2px;
+  background: rgb(157, 154, 154);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(157, 154, 154);
+  border-color: rgb(100, 100, 100);
 }
