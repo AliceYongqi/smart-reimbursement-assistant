@@ -66,7 +66,7 @@ const ReimbursementUI: React.FC<InvoiceUIProps> = ({
       />
 
       <div className={`${styles.inputGroup} ${styles.flex}`} style={{ alignItems: "center" }}>
-        <label htmlFor="aggregateCheckbox" style={{ marginRight: 8 }}>是否汇总金额</label>
+        <label htmlFor="aggregateCheckbox" style={{ marginRight: 8 }}>Summarize Amounts</label>
         <input
           id="aggregateCheckbox"
           type="checkbox"
