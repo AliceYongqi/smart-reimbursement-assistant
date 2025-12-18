@@ -160,14 +160,78 @@ body {
   margin-bottom: 8px;
 }
 
-.downloadBtn {
-  margin-top: 15px;
-  padding: 8px 16px;
-  background: #4CAF50;
-  color: white;
+/* 多功能按钮容器 */
+.btnSubmit {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  min-height: 44px; /* 确保进度条有空间 */
+}
+
+/* loading 状态 - 绿色进度条背景 */
+.btnSubmit.loading {
+  background: #e8f5e9;
+  color: #023853;
+  cursor: not-allowed;
+}
+
+.btnSubmit.loading:hover {
+  transform: scale(1);
+  box-shadow: 0 12px 35px rgba(0, 70, 150, 0.7);
+}
+
+/* success 状态 - 蓝色下载按钮 */
+.btnSubmit.success {
+  background: linear-gradient(to right, #0077cc, #0047ab);
+  color: #e6f0ff;
   border: none;
-  border-radius: 4px;
+  border-radius: 50px;
   cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 8px 25px rgba(0, 50, 100, 0.5);
+}
+
+.btnSubmit.success:hover {
+  transform: scale(1.03);
+  box-shadow: 0 12px 35px rgba(0, 70, 150, 0.7);
+}
+
+/* 进度条覆盖层 */
+.progressOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(to right, #0077cc, #0047ab);
+  z-index: 1;
+}
+
+/* 进度条填充 */
+.progressFill {
+  height: 100%;
+  background: linear-gradient(to right, #015c9d, #05306c);;
+  transition: width 0.3s ease;
+}
+
+/* 按钮文字 - 始终在顶层 */
+.btnText {
+  position: relative;
+  z-index: 2;
+  display: block;
+  text-align: center;
+  font-weight: 500;
+}
+
+.progressText {
+  font-weight: bold;
+  color: #012233;
+}
+
+.statusMessage {
+  margin: 5px 0 0;
+  font-size: 14px;
+  color: #666;
 }
 
 ::-webkit-scrollbar {
