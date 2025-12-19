@@ -56,7 +56,6 @@ import { pdfToImages, dataURLToFile, dataURLToBlob, arrayBufferToBase64,
 
 
 type ProgressCallback = (progress: number, message: string) => void;
-
 export async function parseInvoiceWithQwen(
   fapiaoFiles: File[],
   token: string,
@@ -65,244 +64,205 @@ export async function parseInvoiceWithQwen(
   onProgress?: ProgressCallback
 ) {
   try {
-    onProgress?.(0, "开始处理发票文件...");
+    const BATCH_SIZE = 8;
+    const totalFiles = fapiaoFiles.length;
+    const totalBatches = Math.ceil(totalFiles / BATCH_SIZE);
     
-    const base64Images = [];
+    onProgress?.(0, `Preparing to process ${totalFiles} invoices...`);
     
-    for (let i = 0; i < fapiaoFiles.length; i++) {
-      const file = fapiaoFiles[i];
-      
-      let base64Image = '';
-      if (file.type === 'application/pdf' || file.name?.endsWith('.pdf')) {
-        const dataUrl = await pdfToImages(file);
-        const fileImage = dataURLToBlob(dataUrl);
-        base64Image = await blobToBase64(fileImage);
-      } else {
-        const imageBuffer = await file.arrayBuffer();
-        const base64Str = arrayBufferToBase64(imageBuffer);
-        base64Image = `data:image/jpeg;base64,${base64Str}`;
-      }
-      base64Images.push(base64Image);
-    }
-    onProgress?.(10, "fapiao转换完成...");
-
-
+    // Phase 1: Template parsing (0-5%)
     let templateText = [];
     if (templateFile) {
-      onProgress?.(10, "正在解析Excel模板...");
+      onProgress?.(5, "Parsing Excel template...");
       templateText = await parseExcelOrCsv(templateFile);
     }
+    onProgress?.(5, "Template ready");
     
-    onProgress?.(20, "正在构建请求...");
-    const content: any[] = base64Images.map(base64 => ({ image: base64 }));
-    const messageContent = message(`fapiao`, summary,
-      templateText.length ? `Excel模版如下: ${templateText[0]}` : '');
-    content.push({ text: messageContent });
-
-    onProgress?.(30, "正在调用千问API...");
-
-
-
-
-    const res = await fetch("https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "qwen-vl-max",
-        input: {
-          task: 'image-text-generation',
-          messages: [{ role: 'user', content: content }]
+    // Phase 2: Image conversion (5-20%)
+    onProgress?.(5, `Converting ${totalFiles} files to base64...`);
+    const base64Images = [];
+    const conversionWeight = 15 / totalFiles;
+    
+    for (let i = 0; i < totalFiles; i++) {
+      const file = fapiaoFiles[i];
+      const progress = 5 + (i + 0.5) * conversionWeight;
+      onProgress?.(Math.round(progress), `Converting file ${i + 1}/${totalFiles}: ${file.name}`);
+      
+      try {
+        let base64Image = '';
+        if (file.type === 'application/pdf' || file.name?.endsWith('.pdf')) {
+          const dataUrl = await pdfToImages(file);
+          const fileImage = dataURLToBlob(dataUrl);
+          base64Image = await blobToBase64(fileImage);
+        } else {
+          const imageBuffer = await file.arrayBuffer();
+          const base64Str = arrayBufferToBase64(imageBuffer);
+          base64Image = `data:image/jpeg;base64,${base64Str}`;
         }
-      })
-    });
-
-
-
-
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`Request failed with status ${res.status}: ${text}`);
+        base64Images.push(base64Image);
+      } catch (error) {
+        throw new Error(`Failed to convert file ${file.name}: ${error.message}`);
+      }
     }
+    onProgress?.(20, "All files converted");
+    
+    // Phase 3: Batch API calls (20-80%)
+    const allFapiaoData: any[] = [];
+    const summaryData: any[] = [];
+    const csvData: string[] = [];
+    const apiProgressPerBatch = 60 / totalBatches;
+    
+    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+      const startIdx = batchIndex * BATCH_SIZE;
+      const endIdx = Math.min(startIdx + BATCH_SIZE, totalFiles);
+      const currentBatchImages = base64Images.slice(startIdx, endIdx);
+      
+      const batchStartProgress = 20 + batchIndex * apiProgressPerBatch;
+      onProgress?.(
+        Math.round(batchStartProgress + apiProgressPerBatch * 0.1),
+        `Processing batch ${batchIndex + 1}/${totalBatches} (${endIdx - startIdx} files)`
+      );
+      
+      const content: any[] = currentBatchImages.map(base64 => ({ image: base64 }));
+      const messageContent = message(`fapiao`, summary,
+        templateText.length ? `Excel template as follows: ${templateText[0]}` : '');
+      content.push({ text: messageContent });
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 480000);
+      
+      try {
+        onProgress?.(
+          Math.round(batchStartProgress + apiProgressPerBatch * 0.2),
+          `Calling Qwen API (batch ${batchIndex + 1}/${totalBatches})...`
+        );
+        
+        const res = await fetch(
+          "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
+          {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model: "qwen-vl-max",
+              input: {
+                task: 'image-text-generation',
+                messages: [{ role: 'user', content: content }]
+              }
+            }),
+            signal: controller.signal
+          }
+        );
+        
+        clearTimeout(timeoutId);
+        
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          throw new Error(`Batch ${batchIndex + 1} failed: ${res.status} - ${text}`);
+        }
+        
+        onProgress?.(
+          Math.round(batchStartProgress + apiProgressPerBatch * 0.9),
+          `Parsing response for batch ${batchIndex + 1}...`
+        );
+        
+        const response = await res.json();
+        const parsedResp = parseQwenResponseText(JSON.stringify(response || {}));
+        const batchData = parseJsonData(parsedResp);
+        
+        if (Array.isArray(batchData.jsonData)) {
+          batchData.jsonData.forEach(item => {
+            if (item.summary) summaryData.push(item);
+            else if (item.csv && typeof item.csv === 'string') csvData.push(item.csv);
+            else allFapiaoData.push(item);
+          });
+        }
+      } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          throw new Error(`Batch ${batchIndex + 1} timed out after 120 seconds`);
+        }
+        throw error;
+      }
+    }
+    
+    onProgress?.(80, "All batches completed");
+    
+    // Phase 4: Final summary API call (80-100%)
+    let finalSummary = {};
+    if (summary && summaryData.length > 0) {
+      onProgress?.(85, "Generating final summary via Qwen API...");
+      
+      try {
+        const responseSummary = await fetch(
+          "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
+          {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model: "qwen-vl-max",
+              input: {
+                task: 'text-generation',
+                messages: [{ role: 'user', 
+                  content: [{text: JSON.stringify(summaryData) + 
+                    'Merge all summary items above by category, output final JSON format <{summary: object}>, strictly adhere to: output only the requested content, no additional text.'
+                  }]
+                }]
+              }
+            }),
+          }
+        );
+        
+        if (!responseSummary.ok) {
+          const text = await responseSummary.text().catch(() => "");
+          throw new Error(`Summary generation failed: ${responseSummary.status} - ${text}`);
+        }
 
-    onProgress?.(90, "正在处理响应...");
-    const response = await res.json();
-    console.log("Qwen parseInvoiceWithQwen parsedResp:", response);
-
-
-    const parsedResp = parseQwenResponseText(JSON.stringify(response || {}));
-    console.log("Qwen parseInvoiceWithQwen parsedResp:", parsedResp);
-
-    const data = parseJsonData(parsedResp);
-    console.log("Qwen parseInvoiceWithQwen data:", data);
-
-    onProgress?.(100, "解析完成！");
-
-    return data.jsonData;
+        onProgress?.(95, "Parsing summary response...");
+        const response = await responseSummary.json();
+        const parsedResp = parseQwenResponseText(JSON.stringify(response || {}));
+        const batchData = parseJsonData(parsedResp);
+        finalSummary = batchData.jsonData.summary || {};
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          throw new Error("Summary generation timed out after 120 seconds");
+        }
+        throw error;
+      }
+    }
+    
+    // Phase 5: CSV merge (100%)
+    onProgress?.(100, "Merging CSV data...");
+    let finalCsv = '';
+    if (csvData.length > 0) {
+      const allLines: string[] = [];
+      const firstCsvLines = csvData[0].split('\n').filter(line => line.trim());
+      if (firstCsvLines.length > 0) allLines.push(firstCsvLines[0]);
+      csvData.forEach(csv => {
+        const lines = csv.split('\n').filter(line => line.trim());
+        if (lines.length > 1) allLines.push(...lines.slice(1));
+      });
+      finalCsv = allLines.join('\n');
+    }
+    
+    // Final result
+    const finalResult = [
+      ...allFapiaoData,
+      { summary: finalSummary },
+      { csv: finalCsv }
+    ];
+    
+    onProgress?.(100, `Completed! Processed ${totalFiles} invoices successfully.`);
+    return finalResult;
 
   } catch (e) {
-    onProgress?.(100, `错误: ${e instanceof Error ? e.message : '未知错误'}`);
-    if (e instanceof Error) throw e;
-    throw new Error("Failed to parse Qwen response as JSON");
+    const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+    onProgress?.(100, `Error: ${errorMessage}`);
+    throw e;
   }
 }
-
-
-
-
-
-
-
-// export async function parseInvoiceWithQwen(
-//   fapiaoFiles: File[],
-//   token: string,
-//   templateFile?: File,
-//   summary: boolean = true,
-//   onProgress?: ProgressCallback
-// ) {
-//   try {
-//     const BATCH_SIZE = 8;
-//     const totalFiles = fapiaoFiles.length;
-//     const totalBatches = Math.ceil(totalFiles / BATCH_SIZE);
-    
-//     onProgress?.(0, `准备处理 ${totalFiles} 张发票，共 ${totalBatches} 批...`);
-    
-//     // 1. 预处理阶段：0-10%
-//     let templateText: string[] = [];
-//     if (templateFile) {
-//       onProgress?.(2, "正在解析Excel模板...");
-//       templateText = await parseExcelOrCsv(templateFile);
-//       onProgress?.(5, "模板解析完成");
-//     }
-    
-//     // 图片转换：5-10%
-//     onProgress?.(5, "正在转换所有图片...");
-//     const base64Images = [];
-//     for (let i = 0; i < totalFiles; i++) {
-//       const file = fapiaoFiles[i];
-//       const progress = 5 + (i / totalFiles) * 5;
-//       onProgress?.(progress, `转换图片 ${i + 1}/${totalFiles}...`);
-      
-//       let base64Image = '';
-//       if (file.type === 'application/pdf' || file.name?.endsWith('.pdf')) {
-//         const dataUrl = await pdfToImages(file);
-//         const fileImage = dataURLToBlob(dataUrl);
-//         base64Image = await blobToBase64(fileImage);
-//       } else {
-//         const imageBuffer = await file.arrayBuffer();
-//         const base64Str = arrayBufferToBase64(imageBuffer);
-//         base64Image = `data:image/jpeg;base64,${base64Str}`;
-//       }
-//       base64Images.push(base64Image);
-//     }
-    
-//     // 2. API调用阶段：10-90%（占总进度的80%）
-//     const apiProgressPerBatch = 80 / totalBatches;
-//     const allFapiaoData: any[] = [];
-//     let finalSummary = {};
-//     let finalCsv = '';
-    
-//     onProgress?.(10, "开始批量调用千问API...");
-    
-//     for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-//       const startIdx = batchIndex * BATCH_SIZE;
-//       const endIdx = Math.min(startIdx + BATCH_SIZE, totalFiles);
-//       const currentBatchImages = base64Images.slice(startIdx, endIdx);
-      
-//       // 计算该批次的进度范围
-//       const batchStartProgress = 10 + batchIndex * apiProgressPerBatch;
-      
-//       onProgress?.(
-//         batchStartProgress + apiProgressPerBatch * 0.1,
-//         `处理批次 ${batchIndex + 1}/${totalBatches}（${startIdx + 1}-${endIdx}张）...`
-//       );
-      
-//       // 构建请求内容
-//       const content: any[] = currentBatchImages.map(base64 => ({ image: base64 }));
-//       const messageContent = message(`fapiao`, summary,
-//         templateText.length ? `Excel模版如下: ${templateText[0]}` : '');
-//       content.push({ text: messageContent });
-      
-//       // 启动模拟进度
-//       const apiCallProgressStart = batchStartProgress + apiProgressPerBatch * 0.15;
-//       let simulatedProgress = 0;
-//       const progressInterval = setInterval(() => {
-//         simulatedProgress = Math.min(simulatedProgress + 3, apiProgressPerBatch * 0.75);
-//         onProgress?.(
-//           apiCallProgressStart + simulatedProgress,
-//           `等待API响应（批次 ${batchIndex + 1}/${totalBatches}）...`
-//         );
-//       }, 200);
-      
-//       // 实际的fetch调用
-//       const res = await fetch(
-//         "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
-//         {
-//           method: "POST",
-//           headers: {
-//             "Authorization": `Bearer ${token}`,
-//             "Content-Type": "application/json"
-//           },
-//           body: JSON.stringify({
-//             model: "qwen-vl-max",
-//             input: {
-//               task: 'image-text-generation',
-//               messages: [{ role: 'user', content: content }]
-//             }
-//           })
-//         }
-//       );
-      
-//       clearInterval(progressInterval);
-      
-//       if (!res.ok) {
-//         const text = await res.text().catch(() => "");
-//         throw new Error(`批次 ${batchIndex + 1} 失败: ${res.status} - ${text}`);
-//       }
-      
-//       // 解析响应
-//       onProgress?.(batchStartProgress + apiProgressPerBatch * 0.95, "解析响应中...");
-//       const response = await res.json();
-//       const parsedResp = parseQwenResponseText(JSON.stringify(response || {}));
-//       const batchData = parseJsonData(parsedResp);
-      
-//       // ✅ 分离发票数据、summary和csv
-//       // 假设batchData.jsonData格式: [{fapiao: {}}, {fapiao: {}}, {summary: {}}, {csv: ''}]
-//       if (Array.isArray(batchData.jsonData)) {
-//         batchData.jsonData.forEach(item => {
-//           if (item.fapiao) {
-//             allFapiaoData.push(item);
-//           } else if (item.summary) {
-//             finalSummary = item.summary; // 覆盖，保留最后一个批次的summary
-//           } else if (item.csv && typeof item.csv === 'string') {
-//             // 收集所有csv并合并
-//             finalCsv = item.csv;
-//           }
-//         });
-//       }
-//     }
-    
-//     // 3. 后处理阶段：90-100%
-//     onProgress?.(90, "正在组装最终结果...");
-    
-//     // ✅ 构建最终返回格式: [{fapiao: {}}, {fapiao: {}}, ..., {summary: {}}, {csv: ''}]
-//     const finalResult = [
-//       ...allFapiaoData,          // 所有发票数据
-//       { summary: finalSummary },  // summary对象
-//       { csv: finalCsv }           // csv字符串
-//     ];
-    
-//     onProgress?.(100, "解析完成！");
-//     return finalResult;
-
-//   } catch (e) {
-//     onProgress?.(100, `错误: ${e instanceof Error ? e.message : '未知错误'}`);
-//     if (e instanceof Error) throw e;
-//     throw new Error("Failed to parse Qwen response as JSON");
-//   }
-// }
-
-// jsonData是[{fapiao: {}}, {fapioa: {}}, ... {summary: {}} {csv: ''}]

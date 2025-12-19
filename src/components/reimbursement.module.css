@@ -170,8 +170,8 @@ body {
 
 /* loading 状态 - 绿色进度条背景 */
 .btnSubmit.loading {
-  background: #e8f5e9;
-  color: #023853;
+  background: linear-gradient(to right, #0077cc, #0047ab);
+  color: #e6f0ff;
   cursor: not-allowed;
 }
 
@@ -180,7 +180,26 @@ body {
   box-shadow: 0 12px 35px rgba(0, 70, 150, 0.7);
 }
 
-/* success 状态 - 蓝色下载按钮 */
+@keyframes dots-fade {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 2px 2px 0;
+  background-color: #e6f0ff;
+  animation: dots-fade 1.5s ease-in-out infinite;
+  border-radius: 50%;
+}
+
+.dot:nth-child(1) { animation-delay: 0s; }
+.dot:nth-child(2) { animation-delay: 0.2s; }
+.dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* Success state - Blue download button */
 .btnSubmit.success {
   background: linear-gradient(to right, #0077cc, #0047ab);
   color: #e6f0ff;
@@ -196,7 +215,7 @@ body {
   box-shadow: 0 12px 35px rgba(0, 70, 150, 0.7);
 }
 
-/* 进度条覆盖层 */
+/* Progress bar overlay */
 .progressOverlay {
   position: absolute;
   top: 0;
@@ -207,14 +226,13 @@ body {
   z-index: 1;
 }
 
-/* 进度条填充 */
 .progressFill {
   height: 100%;
   background: linear-gradient(to right, #015c9d, #05306c);;
   transition: width 0.3s ease;
 }
 
-/* 按钮文字 - 始终在顶层 */
+/* Button text - Always on top */
 .btnText {
   position: relative;
   z-index: 2;

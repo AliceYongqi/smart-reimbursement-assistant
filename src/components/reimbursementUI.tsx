@@ -37,7 +37,7 @@ const ReimbursementUI: React.FC<InvoiceUIProps> = ({
     onAggregateChange?.(e.target.checked);
   };
 
-  // 按钮点击逻辑：成功状态点下载，其他状态点提交
+  // download on success state, submit on other states
   const handleButtonClick = () => {
     if (status === "success") {
       onDownload();
@@ -82,7 +82,7 @@ const ReimbursementUI: React.FC<InvoiceUIProps> = ({
         />
       </div>
 
-      {/* 多功能按钮 */}
+      {/* Multi-functional button */}
       <button
         className={`${styles.btn} ${styles.btnSubmit} ${
           status === "loading" ? styles.loading : ""
@@ -90,7 +90,7 @@ const ReimbursementUI: React.FC<InvoiceUIProps> = ({
         onClick={handleButtonClick}
         disabled={status === "loading"}
       >
-        {/* 进度条层（仅在loading时显示） */}
+        {/* Progress bar (displayed only during loading) */}
         {status === "loading" && (
           <div className={styles.progressOverlay}>
             <div
@@ -100,10 +100,20 @@ const ReimbursementUI: React.FC<InvoiceUIProps> = ({
           </div>
         )}
 
-        {/* 按钮文字 */}
         <span className={styles.btnText}>
           {status === "idle" && "Submit and Parse Invoice"}
-          {status === "loading" && `Processing ${progress}% ...`}
+          
+          {status === "loading" && (
+            <>
+              {`Processing ${progress}% `}
+              <span className={styles.dots} aria-hidden="true">
+                <span className={styles.dot}></span>
+                <span className={styles.dot}></span>
+                <span className={styles.dot}></span>
+              </span>
+            </>
+          )}
+
           {status === "success" && "⬇️ Download Results"}
         </span>
       </button>
