@@ -88,37 +88,68 @@ export function blobToBase64(blob): Promise<any> {
   });
 }
 
-export function message(type, summary = true, custom = '') {
-  const basePrompt = `你是一位拥有10年经验的高级财务专家，专精处理发票、Excel数据和财务报表。你能快速解析发票信息，精通Excel函数。
+export function message(type, custom = '') {
+  const basePrompt = `你是一位拥有10年经验的高级财务专家，专精处理发票、Excel数据和财务报表。你能快速解析发票信息，精通Excel函数。能正确处理json和csv格式数据。
   	重要规则(严格遵守)：所有回答必须严格遵循用户指定的输出格式；禁止添加任何解释、注释、Markdown、中文说明或额外文本；只输出要求的内容，前后不要加任何字符。`;
 
   const taskPrompts = {
-    'fapiao-header': `
-      1. 从发票内容提取重要字段，以合法JSON格式输出，关键信息包括但不限于：金额、税号、日期、销售方、购买方、发票类型，以及商品明细（名称、类别、单价、数量等）。请从财务处理的角度判断哪些信息是重要的，并确保输出的JSON格式正确。
-	  	最终输出格式：<JSON object[]>
-	    2. 请对第一步发票数据进行汇总分析，生成JSON格式统计信息。统计内容包括总金额、发票数量，按项目和日期分别汇总的总金额与发票数量。输出格式为{summary: object}，summary中包含上述统计项。若输入数据为空或字段缺失，返回空统计结果。结果push到第1步生成的object[]数组后面。
-      3. 根据提取的发票信息和用户提供的Excel模版中提取出列定义（包括但不限于第一行），生成表格并返回{csv: CSV格式data}，push到第2步生成的object[]数组后面。
+    // 'fapiao': (summary ? '任务分两步: ' : '任务分两步（忽略第二步汇总分析，仅完成第一步）: ') +
+    // `
+    //   1. 从发票内容提取重要字段，以合法JSON格式输出，关键信息包括但不限于：金额、税号、日期、销售方、购买方、发票类型，以及商品明细（名称、类别、单价、数量等）。请从财务处理的角度判断哪些信息是重要的，并确保输出的JSON格式正确。
+	  // 	最终输出格式：<JSON object[]>
+	  //   2. 请对第一步发票数据进行汇总分析，生成JSON格式统计信息。统计内容包括总金额、发票数量，按项目和日期分别汇总的总金额与发票数量。输出格式为{summary: object}，summary中包含上述统计项。若输入数据为空或字段缺失，返回空统计结果。结果push到第1步生成的object[]数组后面。
       	
-	  最终输出格式(严格遵守)：
-      JSON object[]
-      
-      注意：仅输出要求内容，无额外文本。
-    `,
+	  //   最终输出格式(严格遵守)：       [{ "summary": json格式data }, { "csv": CSV格式data }]
+    //   JSON object[]
+
+    //   注意：仅输出要求内容，无额外文本。
+    // `,
     'fapiao': `
-      1. 从发票内容提取重要字段，以合法JSON格式输出，关键信息包括但不限于：金额、税号、日期、销售方、购买方、发票类型，以及商品明细（名称、类别、单价、数量等）。请从财务处理的角度判断哪些信息是重要的，并确保输出的JSON格式正确。
-	  	最终输出格式：<JSON object[]>
-	  2. 请对第一步发票数据进行汇总分析，生成JSON格式统计信息。统计内容包括总金额、发票数量，按项目和日期分别汇总的总金额与发票数量。输出格式为{summary: object}，summary中包含上述统计项。若输入数据为空或字段缺失，返回空统计结果。结果push到第1步生成的object[]数组后面。
-      3. 根据提取的发票信息和报销规范智能生成表头（常见字段包括但不限于：日期、金额、商户、分类、税号等），生成表格并返回{csv: CSV格式data}，push到第2步生成的object[]数组后面。
-      	
-	  最终输出格式(严格遵守)：
-      JSON object[]
+      从发票内容提取重要字段，以合法JSON格式输出，关键信息包括但不限于：金额、税号、日期、销售方、购买方、发票类型，以及商品明细（名称、类别、单价、数量等）。请从财务处理的角度判断哪些信息是重要的，并确保输出的JSON格式正确。
+	  	最终输出格式(严格遵守)：<JSON object[]>
 
       注意：仅输出要求内容，无额外文本。
     `,
 
+    'csv-summary-header': `
+      任务分两步：
+      1. 把上述所有发票数据进行分析、统计、汇总，然后日期和项目名称相同的合并成一条，保存JSON格式 [{ "summary": json格式data }], 确保输出的JSON格式正确。
+	    2. 根据第1步保存的结果和Excel模版中提取出的列定义（包括但不限于第一行），生成表格（智能填写，不要错位）并保存[{ "csv": CSV格式data }]。
+      	
+	    最终输出格式(严格遵守)：
+      把第1步保存的结果和第2步保存的结果合并成一个object[]，然后输出。
+
+      注意(严格遵守)：仅输出要求内容，无任何额外文本。
+    `,
+    'csv-summary': `
+      任务分两步：
+      1. 把上述所有发票数据进行分析、统计、汇总，然后日期和项目名称相同的合并成一条，保存JSON格式 [{ "summary": json格式data }], 确保输出的JSON格式正确。
+	    2. 根据第1步保存的结果和报销规范智能生成表头（常见字段包括但不限于：日期、金额、商户、分类、税号、项目名称等），生成表格并保存[{"csv": CSV格式data}]。
+      	
+	    最终输出格式(严格遵守)：
+      把第1步保存的结果和第2步保存的结果合并成一个object[]，然后输出。
+
+      注意(严格遵守)：仅输出要求内容，无任何额外文本。
+    `,
+    'csv-header': `
+	    根据上述所有发票数据和以及Excel模版中提取出的列定义（包括但不限于第一行），生成表格（智能填写，不要错位）并保存[{"csv": CSV格式data}]。
+      	
+	    最终输出格式(严格遵守)：
+      [{"csv": CSV格式data}]
+
+      注意(严格遵守)：仅输出要求内容，无任何额外文本。
+    `,
+    'csv': `
+	    根据上述所有发票数据和报销规范智能生成表头（常见字段包括但不限于：日期、金额、商户、分类、税号、项目名称等），生成表格并并保存[{"csv": CSV格式data}]。
+      	
+	    最终输出格式(严格遵守)：
+      [{"csv": CSV格式data}]
+
+      注意(严格遵守)：仅输出要求内容，无任何额外文本。
+    `,
   };
 
-  return basePrompt + custom + (summary ? '任务分三步: ' : '任务分三步（忽略第二步汇总分析，仅完成第一步和第三步）: ') + (taskPrompts[type] || '');
+  return basePrompt + custom + (taskPrompts[type] || '');
 }
 
 /**
@@ -232,7 +263,14 @@ export function parseJsonData(raw) {
   try {
     return JSON.parse(s);
   } catch (e) {
-    // Continue attempting to extract.
+    // 尝试修复结构
+    const fixedString = fixJsonStructure(s);
+    try {
+      console.log("修复后的字符串解析:", JSON.parse(fixedString));
+      return JSON.parse(fixedString);
+    } catch (fixError) {
+      // Continue attempting to extract.
+    }
   }
 
   // Locate the first { or [ and match it to the corresponding closing bracket.
@@ -271,6 +309,29 @@ export function parseJsonData(raw) {
   }
 
   return null;
+}
+
+// 修复结构错误的 JSON 字符串
+function fixJsonStructure(jsonString: string): string {
+  // 如果是字符串包裹的，先去除外层引号
+  if (jsonString.startsWith('"') && jsonString.endsWith('"')) {
+    jsonString = jsonString.slice(1, -1);
+  }
+  
+  // 替换转义字符
+  jsonString = jsonString.replace(/\\"/g, '"');
+  
+  // ❌ 修复这个关键错误：将 `}], [{"csv":` 替换为 `}, {"csv":`
+  // 处理可能的空格和换行
+  jsonString = jsonString.replace(
+    /\}\s*\]\s*,\s*\[\s*{/g, 
+    '}, {'
+  );
+  
+  // 如果是双重数组结尾，修复为单数组
+  jsonString = jsonString.replace(/\}\s*\]\s*\]/g, '}]');
+  
+  return jsonString;
 }
 
 export function downloadJson(data: OutputJson, filename: string) {

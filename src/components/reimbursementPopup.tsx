@@ -2,7 +2,6 @@ import { useState, useRef } from "react";
 import ReimbursementUI from "./reimbursementUI";
 import { parseInvoiceWithQwen } from "../utils/qwenApi";
 import { downloadJson, downloadExcel } from "../utils/utils";
-import { type RawInvoice, type OutputJson } from "../types";
 
 function ReimbursementPopup() {
   const [token, setToken] = useState("");
@@ -11,7 +10,7 @@ function ReimbursementPopup() {
   const [fapiaoFiles, setInvoiceFiles] = useState<File[]>([]);
   const [aggregate, setAggregate] = useState<boolean>(true);
   const processedDataRef = useRef<{ excelBlob: Blob; json: any } | null>(null);
-  const [progress, setProgress] = useState(0);  // ✅ 确保有这个状态
+  const [progress, setProgress] = useState(0);
 
   const handleTemplateSelect = (file: File) => setTemplateFile(file);
   const handleFapiaoSelect = (files: File[]) => setInvoiceFiles(files);
