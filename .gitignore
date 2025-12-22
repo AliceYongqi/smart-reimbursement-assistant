@@ -6,7 +6,6 @@ node_modules
 # build outputs
 /build
 /.plasmo
-/dist
 /out
 .next
 .nuxt
