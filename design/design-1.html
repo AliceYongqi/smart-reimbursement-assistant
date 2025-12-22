@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>发票管家 - 你的智能报销助手</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: linear-gradient(135deg, #0066ff, #0033cc);
+            font-family: 'Segoe UI', 'PingFang SC', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #fff;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(12px);
+            border-radius: 24px;
+            padding: 35px;
+            width: 100%;
+            max-width: 480px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.4s ease;
+        }
+        .container:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 30px 60px -10px rgba(0, 100, 255, 0.5);
+        }
+        h1 {
+            font-size: 2.4rem;
+            margin-bottom: 25px;
+            text-align: center;
+            background: linear-gradient(to right, #00e6ff, #00aaff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: 0.5px;
+        }
+        .upload-zone {
+            border: 3px dashed #00d1ff;
+            border-radius: 20px;
+            padding: 45px 20px;
+            text-align: center;
+            margin-bottom: 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: rgba(0, 100, 255, 0.1);
+        }
+        .upload-zone:hover {
+            background: rgba(0, 150, 255, 0.2);
+            border-color: #00aaff;
+        }
+        .upload-zone p {
+            color: #00e6ff;
+            font-size: 1.1rem;
+            margin-top: 15px;
+            line-height: 1.6;
+        }
+        .btn {
+            background: linear-gradient(to right, #00b3ff, #0066ff);
+            color: white;
+            border: none;
+            padding: 16px 45px;
+            font-size: 1.2rem;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 8px 25px rgba(0, 100, 255, 0.4);
+            font-weight: 500;
+            letter-spacing: 0.8px;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 12px 35px rgba(0, 150, 255, 0.6);
+        }
+        .status {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 16px;
+            background: rgba(0, 30, 80, 0.6);
+            text-align: center;
+            display: none;
+        }
+        .status.active {
+            display: block;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 180, 255, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(0, 180, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 180, 255, 0); }
+        }
+        .footer {
+            margin-top: 35px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #a0d2ff;
+            opacity: 0.8;
+        }
+    </style>
+<base target="_blank">
+</head>
+<body>
+    <div class="container">
+        <h1>发票管家</h1>
+        <div class="upload-zone" id="uploadZone">
+            <div style="font-size: 2.5rem; margin-bottom: 15px;">📄</div>
+            <p>点击这里上传发票<br>或拖拽PDF/JPG/PNG文件</p>
+        </div>
+        <button class="btn" id="processBtn">智能解析发票</button>
+        
+        <div class="status" id="status">
+            <h3>✨ 解析中...</h3>
+            <p>正在提取金额/税号/商品明细...</p>
+        </div>
+        
+        <div class="footer">
+            <p>支持增值税/电子/卷式发票 · 100%本地处理</p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('uploadZone').addEventListener('click', () => {
+            alert('请在Chrome插件中实现文件上传逻辑哦~\n\n（小提示：用Web APIs的FileReader处理文件）');
+        });
+        
+        document.getElementById('processBtn').addEventListener('click', () => {
+            const status = document.getElementById('status');
+            status.classList.add('active');
+            setTimeout(() => {
+                status.innerHTML = '<h3>✅ 解析成功！</h3><p>¥2,580.00 | 税号：91330108MA2J1K2T2M</p>';
+            }, 1500);
+        });
+    </script>
+</body>
+</html>
