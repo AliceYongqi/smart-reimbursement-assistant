@@ -38,7 +38,7 @@ body {
 }
 
 .inputGroup {
-  width: 560px;
+  width: 600px;
 }
 
 .inputGroup label {
@@ -50,7 +50,7 @@ body {
 
 .inputGroup input[type="text"] {
   width: 100%;
-  padding: 12px 18px;
+  padding: 10px 15px;
   border-radius: 16px;
   border: 2px solid #006699;
   background: rgba(0, 30, 50, 0.5);
@@ -64,6 +64,56 @@ body {
 .inputGroup input[type="text"]:focus {
   border-color: #00aaff;
   box-shadow: 0 0 0 3px rgba(0, 170, 255, 0.2);
+}
+
+/* 密码输入框包装器 - 相对定位用于放置眼睛图标 */
+.passwordWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.passwordInput {
+  width: 100%;
+  padding-right: 40px !important;
+  width: 100%;
+  padding: 10px 15px;
+  border-radius: 16px;
+  border: 2px solid #006699;
+  background: rgba(0, 30, 50, 0.5);
+  color: #e6f0ff;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.3s;
+}
+
+/* 切换密码可见性的按钮 */
+.togglePassword {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  transition: color 0.2s;
+  z-index: 1;
+}
+
+.togglePassword:hover {
+  color: #333;
+}
+
+.eyeIcon {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
 }
 
 .btn {

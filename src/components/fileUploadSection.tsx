@@ -17,7 +17,7 @@ const FileUploadSection: React.FC<FileUploadSectionProps> = ({
   return (
     <div className={styles.uploadSection}>
       <div className={styles.uploadBox}>
-        <label>1. Upload Excel Template (optional)</label>
+        <label>1. 上传 Excel Template 文件(可选)</label>
         
         <input
           type="file"
@@ -27,21 +27,20 @@ const FileUploadSection: React.FC<FileUploadSectionProps> = ({
           onChange={(e) => e.target.files && onTemplateSelect(e.target.files[0])}
         />
         <label htmlFor="template-upload" className={styles.btnUplaod}>
-          📄 Select file
+          📄 选择文件
         </label>
 
         {templateFile ? (
-          <p>✅ Selected: {templateFile.name}</p>
+          <p>✅ 选择了: {templateFile.name}</p>
         ) : (
           <p style={{ fontSize: 12, color: "#666", marginTop: 6 }}>
-            (Optional) You may skip uploading a template — the assistant will
-            automatically generate the table based on the fapiao contents.
+            （可选）您可以跳过上传模板——助手将根据发票内容自动生成表格。
           </p>
         )}
       </div>
 
       <div className={styles.uploadBox}>
-        <label>2. Upload Invoice Files (supports JPG/PNG/PDF)</label>
+        <label>2. 上传发票文件(支持格式: JPG、PNG、PDF)</label>
         <input
           type="file"
           accept=".jpg,.jpeg,.png,.pdf,image/*,application/pdf"
@@ -51,9 +50,9 @@ const FileUploadSection: React.FC<FileUploadSectionProps> = ({
           onChange={(e) => e.target.files && onFapiaoSelect(Array.from(e.target.files))}
         />
         <label htmlFor="fapiao-upload" className={styles.btnUplaod}>
-          📄 Select file
+          📄 选择文件
         </label>
-        {fapiaoFiles && <p>✅ {fapiaoFiles.length} fapiao Selected </p>}
+        {fapiaoFiles && <p>✅ 选择了 {fapiaoFiles.length} 张发票 </p>}
       </div>
     </div>
   );
