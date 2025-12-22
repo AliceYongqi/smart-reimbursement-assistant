@@ -16,8 +16,8 @@ export async function pdfToImages(pdfFile: File): Promise<string> {
   // const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const pdf = await pdfjsLib.getDocument({
     data: arrayBuffer,
-    cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/ ',
-    standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/ '
+    cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+    standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/'
   }).promise;
   
   
