@@ -99,7 +99,7 @@ export function message(type, custom = '') {
   6. 生成的表头必须完全基于提供的数据，不得凭空创建不存在的表头字段
 
   【智能引导】：
-  1. 汇总记录时，智能合并开票日期和项目明细中的项目名称相同的记录
+  1. 汇总记录时，智能摘要，分析和汇总开票日期和项目明细中的项目名称相同的记录
   2. 当没有提供Excel模板时，可以基于发票实际内容智能生成合理的表头
   3. 表头字段应覆盖发票上的所有关键信息，并遵循财务报表的通用规范
   4. 可以根据发票类型调整表头字段的优先级和组合
@@ -111,12 +111,12 @@ export function message(type, custom = '') {
       从发票内容提取重要字段，以合法JSON格式输出，关键信息包括金额、税号、日期、销售方、购买方、发票类型，必须包括项目明细。
       最终输出格式(严格遵守)：<JSON object[]>
 
-      注意：项目明细中必须包括项目明细中的项目名称。仅输出要求内容，无额外文本。
+      注意：项目明细中必须包括项目名称。仅输出要求内容，无额外文本。
     `,
 
     'csv-summary-header': `
       任务分两步，**必须按顺序完成**：
-      1. **强制要求**：将发票数据按"开票日期"分组。在每个分组内，再将"项目明细中的项目名称"相同的记录汇总成一条记录。必须保存**为JSON格式。
+      1. **强制要求 - 智能汇总**：将发票数据按"开票日期"+"项目明细中的项目名称"两个维度进行**合并汇总**，**必须保存**为JSON格式。
       2. **强制要求**：基于第1步汇总结果和Excel模版中提取出的列定义，**必须生成**表格。
       
       **最终输出格式(严格遵守，这是核心要求)：**
@@ -125,17 +125,17 @@ export function message(type, custom = '') {
       注意(严格遵守)：
       1. 仅输出要求内容，无任何额外文本
       2. 汇总后的数据应该是原始数据的精简汇总版本
-      3. **核心规则**：先按开票日期分组，再按项目名称汇总。
+      3. **核心规则**：相同日期+相同项目名称的记录必须汇总成一条。
       4. ✅ 重要：输出必须是一个数组，包含两个独立对象：
         - 第一个对象必须有"summary"字段
         - 第二个对象必须有"csv"字段
-      5. **反例警示**：若06月06日有1张"客运服务费"发票，09月18日有2张"客运服务费"发票，禁止将3张合并为1条。正确结果应该是：summary包含2条记录（06月06日的单条记录和09月18日的合并记录），csv也应包含2条对应记录
     `,
 
     'csv-summary': `
       任务分两步，**必须按顺序完成**：
-      1. **强制要求**：将发票数据按"开票日期"分组。在每个分组内，再将"项目明细中的项目名称"相同的记录汇总成一条记录。必须保存**为JSON格式。
-      2. **强制要求**：基于第1步汇总结果和报销规范智能生成表头（常见字段包括日期、金额、商户、分类、税号、类别等），**必须生成**表格。
+      1. **强制要求 - 智能汇总**：将发票数据按"开票日期"+"项目明细中的项目名称"两个维度进行**合并汇总**，**必须保存**为JSON格式。
+      必须保存**为JSON格式。
+      2. **强制要求**：基于第1步汇总结果和报销规范智能生成表头（常见字段包括日期、金额、商户、类别等），**必须生成**表格。
       
       **最终输出格式(严格遵守，这是核心要求)：**
       [{ "summary": summaryData }, { "csv": csvData }]
@@ -147,7 +147,6 @@ export function message(type, custom = '') {
       4. ✅ 重要：输出必须是一个数组，包含两个独立对象：
         - 第一个对象必须有"summary"字段
         - 第二个对象必须有"csv"字段
-      5. **反例警示**：若06月06日有1张"客运服务费"发票，09月18日有2张"客运服务费"发票，禁止将3张合并为1条。正确结果应该是：summary包含2条记录（06月06日的单条记录和09月18日的合并记录），csv也应包含2条对应记录
     `,
     'csv-header': `
       仅基于当前提供的发票图像内容，根据发票数据和Excel模版中提取出的列定义，生成表格并保存[{"csv": CSV格式data}]。
@@ -158,7 +157,7 @@ export function message(type, custom = '') {
       注意(严格遵守)：仅输出要求内容，无任何额外文本。
     `,
     'csv': `
-      仅基于当前提供的发票图像内容，根据发票数据和报销规范智能生成表头（常见字段包括日期、金额、商户、分类、税号、项目明细中的项目名称等），生成表格。并保存[{"csv": CSV格式data}]。
+      仅基于当前提供的发票图像内容，根据发票数据和报销规范智能生成表头（常见字段包括日期、金额、商户、类别等），生成表格。并保存[{"csv": CSV格式data}]。
       
       最终输出格式(严格遵守)：
       [{"csv": CSV格式data}]
@@ -169,7 +168,6 @@ export function message(type, custom = '') {
 
   return basePrompt + custom + (taskPrompts[type] || '');
 }
-
 /**
  * Parse an Excel (.xlsx/.xls) or CSV file and return its textual content as a single string.
  *
@@ -215,6 +213,49 @@ export async function parseExcelOrCsv(input) {
   const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }); // 保留原始行列结构
 
   return jsonData;
+}
+
+/**
+ * 提取CSV或Excel文件的所有行，并将其转换为CSV格式字符串
+ * 
+ * @param {File} input File对象（来自<input type="file">）
+ * @returns {Promise<string>} 所有行的CSV格式字符串
+ */
+export async function convertToCsv(input) {
+  if (!XLSX) {
+    throw new Error("Missing dependency 'xlsx'. Please install 'xlsx' via npm.");
+  }
+
+  if (!input || !(input instanceof File)) {
+    throw new Error('Input must be a File object (from <input type="file">).');
+  }
+
+  // 使用现有的parseExcelOrCsv函数获取所有数据
+  const allData = await parseExcelOrCsv(input);
+  
+  // 检查是否有数据
+  if (!allData || allData.length === 0) {
+    return '';
+  }
+  
+  // 处理每一行数据
+  const csvLines = allData.map((row: any) => {
+    // 对每个字段进行转义处理（如果包含逗号、引号或换行符）
+    const escapedFields = row.map(field => {
+      const fieldStr = String(field);
+      // 如果字段包含逗号、双引号或换行符，则需要用双引号包裹并转义内部的双引号
+      if (fieldStr.includes(',') || fieldStr.includes('"') || fieldStr.includes('\n')) {
+        return `"${fieldStr.replace(/"/g, '""')}"`;
+      }
+      return fieldStr;
+    });
+    
+    // 用逗号连接所有字段，形成一行CSV
+    return escapedFields.join(',');
+  });
+  
+  // 用换行符连接所有行
+  return csvLines.join('\n');
 }
 
 export function parseQwenResponseText(responseData) {
