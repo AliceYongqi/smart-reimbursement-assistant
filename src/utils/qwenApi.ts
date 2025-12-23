@@ -68,11 +68,11 @@ export async function parseInvoiceWithQwen(
     onProgress?.(0, `Preparing to process ${totalFiles} invoices...`);
     
     // Phase 1: Template parsing (0-5%)
-    let templateText = '';
+    let templateText = [];
     if (templateFile) {
       onProgress?.(5, "Parsing Excel template...");
-      // templateText = await parseExcelOrCsv(templateFile);
-      templateText = await convertToCsv(templateText);
+      templateText = await parseExcelOrCsv(templateFile);
+      // templateText = await convertToCsv(templateText);
     }
     onProgress?.(5, "Template ready");
     
@@ -147,12 +147,12 @@ export async function parseInvoiceWithQwen(
     console.log('allFapiaoData:', allFapiaoData);
     
     // 改进数据格式，使模型更容易理解
-    const customContent = `
+     const customContent = `
     【发票数据】：
-    ${JSON.stringify(allFapiaoData, null, 2)}
+    ${JSON.stringify(allFapiaoData, null, 2)}。
     ${templateText.length ? `
     【Excel模板】：
-    ${templateText}` : ''}
+    ${templateText[0].join(',')}。` : ''}
     `;
     
     const messageContent = message(
