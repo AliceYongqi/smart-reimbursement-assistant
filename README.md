@@ -279,3 +279,27 @@ No build-time configuration required. All settings (token, summary toggle) are m
 - [Qwen Multimodal Model Docs](https://help.aliyun.com/document_detail/2399484.html)
 - [Multer File Upload](https://github.com/expressjs/multer)
 - [pdfjs-dist GitHub](https://github.com/mozilla/pdf.js)
+
+---
+
+## Packaging the Extension for Distribution
+
+To create a zip file of the extension for easy distribution or loading into other browsers:
+
+```bash
+# From project root
+npm run zip
+```
+
+This command will:
+1. Automatically build the extension (equivalent to running `npm run build`)
+2. Create a zip file named `smart-reimbursement-extension.zip` containing all files from the `dist` folder
+3. Place the zip file in the project root directory
+
+### Loading the Packaged Extension
+1. In Chrome, go to `chrome://extensions`
+2. Enable Developer mode (top right)
+3. Click "Load unpacked" and select the `smart-reimbursement-extension.zip` file
+4. The extension will be installed and ready to use
+
+---
