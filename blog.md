@@ -52,6 +52,7 @@ const FileUploadSection: React.FC<FileUploadSectionProps> = ({
 - `pdfToImages()`：将 PDF 文件转换为浏览器中的图像数据
 - `dataURLToFile()` / `dataURLToBlob()`：处理数据格式转换
 - `downloadJson()` / `downloadExcel()`：提供文件下载功能
+- `convertToCsv()`：提取CSV或Excel文件的所有行并转换为标准CSV格式字符串
 
 ## 智能API开发实战：遇到的坑与解决方案
 
@@ -485,7 +486,68 @@ async function processApiCallInBackground(imageData, apiKey) {
 }
 ```
 
-### 5. 错误处理与用户反馈机制
+### 5. API过多导致上下文溢出
+
+**问题**：
+企业API太多，LLM在大量API描述中迷失方向。
+
+**解决方案**：
+
+```typescript
+// 使用向量库语义搜索相关API
+import { OpenAIEmbeddings } from "langchain/embeddings/openai";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+
+// 1. 构建API描述向量库
+async function buildApiVectorStore(apiDescriptions) {
+  const embeddings = new OpenAIEmbeddings();
+  const vectorStore = await MemoryVectorStore.fromTexts(
+    apiDescriptions.map(api => api.description),
+    apiDescriptions.map(api => api.metadata),
+    embeddings
+  );
+  return vectorStore;
+}
+
+// 2. 根据用户查询动态检索相关API
+async function retrieveRelevantApis(query, vectorStore, topK = 3) {
+  const results = await vectorStore.similaritySearch(query, topK);
+  return results.map(doc => doc.metadata.api);
+}
+
+// 3. 设计标准化的工具架构
+class Tool {
+  constructor(name, description, func, parameters) {
+    this.name = name;
+    this.description = description;
+    this.func = func;
+    this.parameters = parameters;
+  }
+  
+  async execute(params) {
+    return await this.func(params);
+  }
+}
+
+// 4. 使用LangChain简化工具管理
+import { initializeAgentExecutorWithOptions } from "langchain/agents";
+import { ChatOpenAI } from "langchain/chat_models/openai";
+
+async function createAgent(tools, modelName = "gpt-4") {
+  const model = new ChatOpenAI({ modelName, temperature: 0 });
+  const executor = await initializeAgentExecutorWithOptions(
+    tools,
+    model,
+    {
+      agentType: "structured-chat-zero-shot-react-description",
+      verbose: true
+    }
+  );
+  return executor;
+}
+```
+
+### 6. 错误处理与用户反馈机制
 
 **问题**：
 API 调用可能因为各种原因失败（网络问题、密钥错误、服务器错误等），需要提供友好的错误提示。
@@ -531,7 +593,7 @@ async function processInvoice(file, apiKey, onProgress) {
 }
 ```
 
-### 6. 性能优化：大型文件处理
+### 7. 性能优化：大型文件处理
 
 **问题**：
 处理大型 PDF 文件或多张发票时，浏览器内存占用过高，可能导致扩展崩溃。
@@ -611,6 +673,22 @@ Excel/CSV 模板系统设计灵活，用户可以通过简单地上传模板文�
 - 初始状态：提示用户上传文件
 - 加载状态：显示处理进度条和动画效果
 - 完成状态：提供明确的下载按钮
+
+## 性能与成本分析
+
+通过实际测试，我们对Smart Reimbursement Assistant的性能和使用成本进行了详细分析：
+
+### 处理速度
+- **单张发票处理时间**：从上传到汇总完成大约需要11秒
+- 这个时间包括文件上传、图像预处理、AI模型调用、数据解析和结果生成的完整流程
+
+### 使用成本
+- **批量处理成本**：处理十张发票的API调用成本约为一分钱（0.01元）
+- 这种低成本高效率的特性使得扩展特别适合企业级批量发票处理场景
+
+### 性能优化成果
+- 通过渐进式处理策略和资源清理机制，有效降低了浏览器内存占用
+- 实现了高效的批处理能力，保证多文件处理时的稳定性和响应速度
 
 ## 开发与部署
 

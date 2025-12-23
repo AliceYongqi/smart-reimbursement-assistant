@@ -1,5 +1,6 @@
 import { pdfToImages, dataURLToFile, dataURLToBlob, arrayBufferToBase64,
-  blobToBase64, message, parseExcelOrCsv, parseQwenResponseText, parseJsonData } from "./utils";
+  blobToBase64, message, parseExcelOrCsv, parseQwenResponseText, parseJsonData, 
+  convertToCsv} from "./utils";
 
 /**
  * Upload multiple fapiao files to the backend/large model for parsing. 
@@ -71,6 +72,7 @@ export async function parseInvoiceWithQwen(
     if (templateFile) {
       onProgress?.(5, "Parsing Excel template...");
       templateText = await parseExcelOrCsv(templateFile);
+      // templateText = await convertToCsv(templateText);
     }
     onProgress?.(5, "Template ready");
     
@@ -145,12 +147,12 @@ export async function parseInvoiceWithQwen(
     console.log('allFapiaoData:', allFapiaoData);
     
     // 改进数据格式，使模型更容易理解
-    const customContent = `
+     const customContent = `
     【发票数据】：
-    ${JSON.stringify(allFapiaoData, null, 2)}
+    ${JSON.stringify(allFapiaoData, null, 2)}。
     ${templateText.length ? `
     【Excel模板】：
-    ${templateText[0].join(',')}` : ''}
+    ${templateText[0].join(',')}。` : ''}
     `;
     
     const messageContent = message(
@@ -250,7 +252,7 @@ async function fetchQianWen(token: string, content: any[], controller?: AbortCon
           messages: [{ role: 'user', content: content }]
         },
         parameters: {
-          temperature: 0.1, // 降低温度减少幻觉，0.1-0.3是比较保守的设置
+          temperature: 0.3, // 降低温度减少幻觉，0.1-0.3是比较保守的设置
           top_p: 0.8,       // 控制采样多样性
           max_new_tokens: 2048 // 限制最大生成 tokens
         }
